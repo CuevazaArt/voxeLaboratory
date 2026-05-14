@@ -2,7 +2,11 @@
     "name": "VoxelLab.Tests",
     "rootNamespace": "VoxelLab.Tests",
     "references": [
-        "VoxelLab.Runtime",
+        "VoxelLab.VoxelCore",
+        "VoxelLab.SVO",
+        "VoxelLab.ChunkSystem",
+        "VoxelLab.PhysicsVolumetric",
+        "VoxelLab.Tools",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

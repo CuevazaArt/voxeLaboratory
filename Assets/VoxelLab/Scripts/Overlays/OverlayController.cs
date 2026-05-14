@@ -44,7 +44,7 @@ namespace VoxelLab.Overlays
         public Material densityMat;     // Pinta por densidad (vertex color modulado).
         public Material materialOverlayMat; // Pinta por id de material.
 
-        public VoxeLab.Core.VoxelWorld World { get; set; }
+        public VoxelLab.Core.VoxelWorld World { get; set; }
         public ChunkRenderer[] Renderers { get; set; }
         public Camera DebugCamera { get; set; }
 

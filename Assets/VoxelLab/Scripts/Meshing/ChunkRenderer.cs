@@ -46,7 +46,7 @@ namespace VoxelLab.Meshing
             if (Chunk == null) return;
             LodLevel = lod;
 
-            ChunkMeshData data;
+            ChunkMeshData data = default;
             bool ok = gpuMesher != null && gpuMesher.IsAvailable && lod == 0
                 && gpuMesher.TryBuild(Chunk, out data);
             if (!ok)

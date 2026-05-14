@@ -25,6 +25,8 @@
 using NUnit.Framework;
 using UnityEngine;
 using VoxelLab.Core;
+using VoxelLab.Physics;
+using VoxelLab.Planet;
 using VoxelLab.Tools;
 
 namespace VoxelLab.Tests
@@ -157,6 +159,84 @@ namespace VoxelLab.Tests
             Assert.DoesNotThrow(() => new BrushTool().Apply(w, ray, p, null));
             Assert.DoesNotThrow(() => new ErosionTool().Apply(w, ray, p, null));
             Assert.DoesNotThrow(() => new CutTool().Apply(w, ray, p, null));
+        }
+
+        // -----------------------------------------------------------------
+        //  Ballistics sandbox
+        // -----------------------------------------------------------------
+
+        [Test]
+        public void CubeGenerator_FillsExactExtent_AndIsSolidAtCenter()
+        {
+            var w = new VoxelWorld(16);
+            var s = CubeSettings.Default;
+            s.size = 8;
+            s.center = Vector3Int.zero;
+            int placed = CubeGenerator.Generate(w, s);
+            Assert.AreEqual(8 * 8 * 8, placed);
+            Assert.IsTrue(w.GetVoxel(0, 0, 0).solido);
+            // Esquina justo dentro
+            Assert.IsTrue(w.GetVoxel(-4, -4, -4).solido);
+            // Esquina justo fuera
+            Assert.IsFalse(w.GetVoxel(4, 4, 4).solido);
+        }
+
+        [Test]
+        public void StepFreeSpace_PreservesMomentum_InVacuum()
+        {
+            var w = new VoxelWorld(16); // mundo vacío
+            var p = Projectile.Create(Vector3.zero, new Vector3(10f, 0f, 0f), mass: 2f, radius: 0.25f, drag: 0f);
+            float dt = 1f / 60f;
+            for (int i = 0; i < 30; i++)
+                VolumetricPhysics.StepFreeSpace(w, p.body, Vector3.zero, dt);
+            Assert.AreEqual(10f, p.body.velocity.x, 1e-4f);
+            Assert.AreEqual(10f * 30f * dt, p.body.position.x, 1e-3f);
+            Assert.AreEqual(0f, p.body.velocity.y, 1e-6f);
+            Assert.AreEqual(0f, p.body.velocity.z, 1e-6f);
+        }
+
+        [Test]
+        public void StepFreeSpace_ResolvesCollision_AgainstCube()
+        {
+            var w = new VoxelWorld(16);
+            var s = CubeSettings.Default;
+            s.size = 8;
+            s.center = new Vector3Int(10, 0, 0); // cubo a la derecha del origen
+            CubeGenerator.Generate(w, s);
+
+            var p = Projectile.Create(Vector3.zero, new Vector3(50f, 0f, 0f), mass: 1f, radius: 0.25f, drag: 0f);
+            float dt = 1f / 240f;
+            // Simular hasta 0.5s; debe quedar fuera del sólido (densidad < SOLID_THRESHOLD).
+            for (int i = 0; i < 120; i++)
+                VolumetricPhysics.StepFreeSpace(w, p.body, Vector3.zero, dt);
+
+            float density = VolumetricPhysics.SampleDensity(w, p.body.position);
+            Assert.Less(density, VolumetricPhysics.SOLID_THRESHOLD,
+                "El proyectil no debería penetrar persistentemente el cubo sólido.");
+        }
+
+        [Test]
+        public void Projectile_KineticEnergy_Matches_HalfMV2()
+        {
+            var p = Projectile.Create(Vector3.zero, new Vector3(0f, 0f, 20f), mass: 3f, radius: 0.5f, drag: 0f);
+            float expected = 0.5f * 3f * 20f * 20f;
+            Assert.AreEqual(expected, p.KineticEnergy, 1e-3f);
+        }
+
+        [Test]
+        public void ImpactRadius_IncreasesWithEnergy_AndRespectsClamp()
+        {
+            float baseR = 0.2f;
+            float k = 0.1f;
+            float maxR = 2.5f;
+
+            float r0 = ProjectileLauncher.ComputeImpactRadius(0f, baseR, k, maxR);
+            float r1 = ProjectileLauncher.ComputeImpactRadius(100f, baseR, k, maxR);
+            float r2 = ProjectileLauncher.ComputeImpactRadius(10000f, baseR, k, maxR);
+
+            Assert.GreaterOrEqual(r0, baseR);
+            Assert.Greater(r1, r0);
+            Assert.LessOrEqual(r2, maxR + 1e-6f);
         }
     }
 }

@@ -19,6 +19,7 @@ using UnityEngine;
 using VoxelLab.Core;
 using VoxelLab.Cameras;
 using VoxelLab.Overlays;
+using VoxelLab.Physics;
 using VoxelLab.Tools;
 
 namespace VoxelLab.UI
@@ -29,8 +30,9 @@ namespace VoxelLab.UI
         public OverlayController overlays;
         public CameraSwitcher cameras;
         public VoxelLab.Boot.VoxeLab lab;
+        public ProjectileLauncher launcher;
 
-        private Rect _windowRect = new Rect(10, 10, 320, 480);
+        private Rect _windowRect = new Rect(10, 10, 360, 680);
         private string[] _materialNames;
         private string[] _toolNames;
         private bool _show = true;
@@ -110,11 +112,66 @@ namespace VoxelLab.UI
             {
                 GUILayout.Label($"LOD scale: {lab.lodScale:0.00}");
                 lab.lodScale = GUILayout.HorizontalSlider(lab.lodScale, 0.1f, 4f);
-                if (GUILayout.Button("Regenerar planeta")) lab.RegeneratePlanet();
+                if (GUILayout.Button("Regenerar mundo")) lab.RegenerateWorld();
                 GUILayout.Label($"Chunks: {lab.ChunkCount}  /  Voxels sólidos: {lab.SolidVoxelEstimate}");
             }
 
+            DrawBallistics();
+
             GUI.DragWindow();
+        }
+
+        private void DrawBallistics()
+        {
+            if (launcher == null) return;
+
+            GUILayout.Space(8);
+            GUILayout.Label("Balística (sandbox)");
+
+            GUILayout.Label($"Masa: {launcher.mass:0.00}");
+            launcher.mass = GUILayout.HorizontalSlider(launcher.mass, 0.05f, 50f);
+
+            GUILayout.Label($"Radio: {launcher.radius:0.00}");
+            launcher.radius = GUILayout.HorizontalSlider(launcher.radius, 0.05f, 2f);
+
+            GUILayout.Label($"Velocidad: {launcher.initialSpeed:0.0}");
+            launcher.initialSpeed = GUILayout.HorizontalSlider(launcher.initialSpeed, 1f, 300f);
+
+            GUILayout.Label($"Drag: {launcher.drag:0.000}");
+            launcher.drag = GUILayout.HorizontalSlider(launcher.drag, 0f, 1f);
+
+            launcher.applyDestructionOnImpact = GUILayout.Toggle(launcher.applyDestructionOnImpact, "Destruir voxels al impactar");
+            GUILayout.Label($"R impacto base: {launcher.baseImpactRadius:0.00}");
+            launcher.baseImpactRadius = GUILayout.HorizontalSlider(launcher.baseImpactRadius, 0.05f, 4f);
+            GUILayout.Label($"Escala radio / sqrt(E): {launcher.impactRadiusPerSqrtEnergy:0.000}");
+            launcher.impactRadiusPerSqrtEnergy = GUILayout.HorizontalSlider(launcher.impactRadiusPerSqrtEnergy, 0f, 0.5f);
+            GUILayout.Label($"Radio impacto max: {launcher.maxImpactRadius:0.00}");
+            launcher.maxImpactRadius = GUILayout.HorizontalSlider(launcher.maxImpactRadius, 0.2f, 20f);
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Disparar")) FireFromActiveCamera();
+            if (GUILayout.Button("Limpiar proyectiles")) launcher.Clear();
+            GUILayout.EndHorizontal();
+
+            GUILayout.Label($"Activos: {launcher.ActiveCount}  Disparos: {launcher.TotalShots}  Impactos: {launcher.TotalImpacts}");
+            GUILayout.Label($"Ultimo impacto E: {launcher.LastImpactEnergy:0.00}  R: {launcher.LastImpactRadius:0.00}  Vx removidos: {launcher.LastRemovedVoxels}");
+        }
+
+        private void FireFromActiveCamera()
+        {
+            if (launcher == null) return;
+
+            Camera cam = null;
+            if (cameras != null && cameras.slots != null && cameras.slots.Length > 0)
+            {
+                int idx = Mathf.Clamp(cameras.active, 0, cameras.slots.Length - 1);
+                cam = cameras.slots[idx].camera;
+            }
+            if (cam == null) cam = Camera.main;
+            if (cam == null) return;
+
+            Vector3 origin = cam.transform.position + cam.transform.forward * 1.5f;
+            launcher.Fire(origin, cam.transform.forward);
         }
 
         private void DrawOverlay(string label, OverlayFlags f)

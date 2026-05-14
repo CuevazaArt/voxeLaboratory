@@ -26,12 +26,20 @@ using VoxelLab.UI;
 
 namespace VoxelLab.Boot
 {
+    public enum WorldMode
+    {
+        Planet = 0,
+        CubeSandbox = 1,
+    }
+
     public class VoxeLab : MonoBehaviour
     {
         [Header("Mundo")]
         public int chunkSize = 16;
         public int octreeSizePow2 = 9;          // 2^9 = 512 voxels lado raíz
+        public WorldMode worldMode = WorldMode.Planet;
         public PlanetSettings planet = PlanetSettings.Default;
+        public CubeSettings cube = CubeSettings.Default;
 
         [Header("Render")]
         public Material defaultMaterial;
@@ -75,7 +83,7 @@ namespace VoxelLab.Boot
             _chunksRoot = new GameObject("Chunks").transform;
             _chunksRoot.SetParent(transform, false);
 
-            int placed = PlanetGenerator.Generate(World, planet);
+            int placed = GenerateWorldContent();
             SolidVoxelEstimate = placed;
 
             // Crear renderers iniciales
@@ -125,9 +133,23 @@ namespace VoxelLab.Boot
             ui.toolManager = toolManager;
             ui.overlays = overlay;
             ui.cameras = cameraSwitcher;
+            if (ui.launcher == null)
+                ui.launcher = FindObjectOfType<ProjectileLauncher>();
+        }
+
+        private int GenerateWorldContent()
+        {
+            if (worldMode == WorldMode.CubeSandbox)
+                return CubeGenerator.Generate(World, cube);
+            return PlanetGenerator.Generate(World, planet);
         }
 
         public void RegeneratePlanet()
+        {
+            RegenerateWorld();
+        }
+
+        public void RegenerateWorld()
         {
             // Limpia mundo y rehace.
             foreach (var kv in _renderers) Destroy(kv.Value.gameObject);
@@ -135,7 +157,7 @@ namespace VoxelLab.Boot
             _dirtyQueue.Clear();
             _dirtySet.Clear();
             World.chunks.Clear();
-            int placed = PlanetGenerator.Generate(World, planet);
+            int placed = GenerateWorldContent();
             SolidVoxelEstimate = placed;
             foreach (var c in World.AllChunks())
             {

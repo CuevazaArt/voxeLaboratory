@@ -6,6 +6,7 @@
         "VoxelLab.SVO",
         "VoxelLab.ChunkSystem",
         "VoxelLab.PhysicsVolumetric",
+        "VoxelLab.PlanetGenerator",
         "VoxelLab.Tools",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"

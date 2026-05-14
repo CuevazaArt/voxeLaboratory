@@ -115,5 +115,21 @@ namespace VoxelLab.Physics
             for (int i = 0; i < 4; i++)
                 if (!ResolveCollision(world, body)) break;
         }
+
+        /// <summary>
+        /// Step en espacio libre (sin gravedad). Aplica un vector de gravedad
+        /// arbitrario opcional (Vector3.zero para vacío real), drag exponencial
+        /// y resolución de colisión voxel.
+        /// </summary>
+        public static void StepFreeSpace(VoxelWorld world, VolumetricBody body, Vector3 gravity, float dt)
+        {
+            if (gravity.sqrMagnitude > 0f)
+                body.velocity += gravity * dt;
+            if (body.drag > 0f)
+                body.velocity *= Mathf.Max(0f, 1f - body.drag * dt);
+            body.position += body.velocity * dt;
+            for (int i = 0; i < 4; i++)
+                if (!ResolveCollision(world, body)) break;
+        }
     }
 }

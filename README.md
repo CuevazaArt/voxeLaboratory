@@ -24,7 +24,7 @@ físicas se resuelven por muestreo trilineal de densidad.
 ## Controles
 
 | Tecla | Acción |
-|-------|--------|
+| ----- | ------ |
 | `F1` / `F2` / `F3` | Orbital / Fly / FPS |
 | `WASD` `Q/E` | Movimiento (Fly/FPS) |
 | Botón derecho ratón | Rotar (Fly/Orbital) |
@@ -56,10 +56,27 @@ dependencias completas. Resumen:
 7. **Tools** — Drill, Explosion, Brush, Erosion, Cut.
 8. **UI** — `LabUI` (IMGUI sin dependencias).
 
+## Directivas consolidadas
+
+Reglas de arquitectura, seguridad, calidad, optimización y entrega:
+
+1. [docs/ENGINE_DIRECTIVES.md](docs/ENGINE_DIRECTIVES.md)
+2. [AGENTS.md](AGENTS.md)
+3. [.github/copilot-instructions.md](.github/copilot-instructions.md)
+
+Estas directivas son obligatorias para cambios de código y documentación.
+
 ## Tests
 
 `Window → General → Test Runner → EditMode → Run All`. Los tests usan
 NUnit y no requieren entrar en Play Mode.
+
+## CI
+
+El flujo [.github/workflows/ci.yml](.github/workflows/ci.yml) separa:
+
+1. validación rápida en `pull_request` y `push` (checks estáticos y grafo asmdef)
+2. validación pesada manual (`workflow_dispatch`) para controlar tiempo/costo
 
 ## Diseño
 

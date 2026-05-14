@@ -1,0 +1,112 @@
+name: voxel-ci
+
+on:
+  pull_request:
+    paths:
+      - "Assets/**"
+      - "Packages/**"
+      - "ProjectSettings/**"
+      - "docs/**"
+      - ".github/workflows/**"
+      - "README.md"
+      - "AGENTS.md"
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - "Assets/**"
+      - "Packages/**"
+      - "ProjectSettings/**"
+      - "docs/**"
+      - ".github/workflows/**"
+      - "README.md"
+      - "AGENTS.md"
+  workflow_dispatch:
+    inputs:
+      run_heavy:
+        description: "Run heavy Unity validation jobs"
+        required: false
+        default: "false"
+
+jobs:
+  quick-static-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache script tooling
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache
+          key: quick-static-${{ runner.os }}-${{ hashFiles('**/*.asmdef', '**/*.cs', '**/*.compute', '**/*.shader') }}
+          restore-keys: |
+            quick-static-${{ runner.os }}-
+
+      - name: Fail on unresolved placeholders in source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RInE "TODO|FIXME" --include="*.cs" --include="*.compute" --include="*.shader" Assets; then
+            echo "Unresolved placeholders found in source files."
+            exit 1
+          fi
+
+      - name: Validate asmdef graph is acyclic
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $asmdefs = Get-ChildItem -Recurse -Path "Assets/VoxelLab" -Filter "*.asmdef"
+          $graph = @{}
+          foreach ($file in $asmdefs) {
+            $json = Get-Content -Raw -Path $file.FullName | ConvertFrom-Json
+            $name = [string]$json.name
+            if (-not $graph.ContainsKey($name)) { $graph[$name] = @() }
+            foreach ($r in $json.references) {
+              if ($null -ne $r -and "$r".Length -gt 0) {
+                $graph[$name] += [string]$r
+              }
+            }
+          }
+
+          $visited = @{}
+          $stack = @{}
+
+          function Visit([string]$node) {
+            if ($stack.ContainsKey($node) -and $stack[$node]) {
+              throw "Cycle detected in asmdef graph at node: $node"
+            }
+            if ($visited.ContainsKey($node) -and $visited[$node]) { return }
+
+            $stack[$node] = $true
+            if ($graph.ContainsKey($node)) {
+              foreach ($n in $graph[$node]) {
+                if ($graph.ContainsKey($n)) {
+                  Visit $n
+                }
+              }
+            }
+            $stack[$node] = $false
+            $visited[$node] = $true
+          }
+
+          foreach ($k in $graph.Keys) {
+            Visit $k
+          }
+
+          Write-Host "Asmdef dependency graph is acyclic."
+
+  heavy-unity-validation:
+    if: github.event_name == 'workflow_dispatch' && inputs.run_heavy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Unity validation placeholder
+        run: |
+          echo "Heavy Unity validation should be wired here (EditMode/PlayMode jobs)."
+          echo "Run manually only, to control CI time and cost."

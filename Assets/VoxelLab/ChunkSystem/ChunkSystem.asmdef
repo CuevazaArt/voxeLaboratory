@@ -1,7 +1,10 @@
 {
-    "name": "ChunkSystem",
-    "references": [],
-    "optionalUnityReferences": [],
+    "name": "VoxelLab.ChunkSystem",
+    "rootNamespace": "VoxelLab.Core",
+    "references": [
+        "VoxelLab.VoxelCore",
+        "VoxelLab.SVO"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

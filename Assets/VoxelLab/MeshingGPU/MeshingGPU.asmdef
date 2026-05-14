@@ -1,7 +1,10 @@
 {
-    "name": "MeshingGPU",
-    "references": [],
-    "optionalUnityReferences": [],
+    "name": "VoxelLab.MeshingGPU",
+    "rootNamespace": "VoxelLab.Meshing",
+    "references": [
+        "VoxelLab.VoxelCore",
+        "VoxelLab.ChunkSystem"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

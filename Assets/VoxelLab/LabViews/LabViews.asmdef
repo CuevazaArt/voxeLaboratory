@@ -1,7 +1,14 @@
 {
-    "name": "LabViews",
-    "references": [],
-    "optionalUnityReferences": [],
+    "name": "VoxelLab.LabViews",
+    "rootNamespace": "VoxelLab",
+    "references": [
+        "VoxelLab.VoxelCore",
+        "VoxelLab.SVO",
+        "VoxelLab.ChunkSystem",
+        "VoxelLab.MeshingGPU",
+        "VoxelLab.PhysicsVolumetric",
+        "VoxelLab.Tools"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

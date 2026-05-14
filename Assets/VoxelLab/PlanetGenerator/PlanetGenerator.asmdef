@@ -1,7 +1,10 @@
 {
-    "name": "PlanetGenerator",
-    "references": [],
-    "optionalUnityReferences": [],
+    "name": "VoxelLab.PlanetGenerator",
+    "rootNamespace": "VoxelLab.Planet",
+    "references": [
+        "VoxelLab.VoxelCore",
+        "VoxelLab.ChunkSystem"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

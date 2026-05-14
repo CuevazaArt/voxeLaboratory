@@ -1,8 +1,19 @@
 {
-    "name": "EditorTools",
-    "references": [],
-    "optionalUnityReferences": [],
-    "includePlatforms": [],
+    "name": "VoxelLab.EditorTools",
+    "rootNamespace": "VoxelLab.EditorTools",
+    "references": [
+        "VoxelLab.VoxelCore",
+        "VoxelLab.SVO",
+        "VoxelLab.ChunkSystem",
+        "VoxelLab.MeshingGPU",
+        "VoxelLab.PhysicsVolumetric",
+        "VoxelLab.PlanetGenerator",
+        "VoxelLab.Tools",
+        "VoxelLab.LabViews"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,

@@ -92,6 +92,28 @@ namespace VoxelLab.Tests
         }
 
         [Test]
+        public void RaySample_ClampsInvalidStep_AndDoesNotHang()
+        {
+            var w = new VoxelWorld(16);
+            w.FillSphere(new Vector3(0, 0, 8), 3f, (byte)MaterialId.Rock);
+
+            var hit = w.RaySample(Vector3.zero, Vector3.forward, 32f, dt: 0f);
+            Assert.IsTrue(hit.hit);
+        }
+
+        [Test]
+        public void SphereOps_ReturnZero_WhenRadiusIsNonPositive()
+        {
+            var w = new VoxelWorld(16);
+
+            Assert.AreEqual(0, w.FillSphere(Vector3.zero, 0f, (byte)MaterialId.Dirt));
+            Assert.AreEqual(0, w.CarveSphere(Vector3.zero, -1f, 1f));
+
+            var explosion = w.Explosion(Vector3.zero, 0f, 1f);
+            Assert.AreEqual(0, explosion.voxelsRemoved);
+        }
+
+        [Test]
         public void Octree_Subdivides_OnSetVoxel()
         {
             var w = new VoxelWorld(16, 7); // root 128

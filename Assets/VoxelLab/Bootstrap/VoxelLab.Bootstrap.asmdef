@@ -1,9 +1,15 @@
 {
-    "name": "VoxelLab.PhysicsVolumetric",
-    "rootNamespace": "VoxelLab.Physics",
+    "name": "VoxelLab.Bootstrap",
+    "rootNamespace": "VoxelLab",
     "references": [
         "VoxelLab.VoxelCore",
-        "VoxelLab.ChunkSystem"
+        "VoxelLab.SVO",
+        "VoxelLab.ChunkSystem",
+        "VoxelLab.MeshingGPU",
+        "VoxelLab.PhysicsVolumetric",
+        "VoxelLab.PlanetGenerator",
+        "VoxelLab.Tools",
+        "VoxelLab.LabViews"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

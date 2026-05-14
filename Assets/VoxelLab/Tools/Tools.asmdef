@@ -1,7 +1,11 @@
 {
-    "name": "Tools",
-    "references": [],
-    "optionalUnityReferences": [],
+    "name": "VoxelLab.Tools",
+    "rootNamespace": "VoxelLab.Tools",
+    "references": [
+        "VoxelLab.VoxelCore",
+        "VoxelLab.ChunkSystem",
+        "VoxelLab.PhysicsVolumetric"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

@@ -1,7 +1,7 @@
 {
-    "name": "VoxelCore",
+    "name": "VoxelLab.VoxelCore",
+    "rootNamespace": "VoxelLab.VoxelCore",
     "references": [],
-    "optionalUnityReferences": [],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

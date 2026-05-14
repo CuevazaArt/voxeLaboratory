@@ -1,9 +1,9 @@
 {
-    "name": "SVO",
+    "name": "VoxelLab.SVO",
+    "rootNamespace": "VoxelLab.SVO",
     "references": [
-        "VoxelCore"
+        "VoxelLab.VoxelCore"
     ],
-    "optionalUnityReferences": [],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

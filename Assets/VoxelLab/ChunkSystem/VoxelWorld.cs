@@ -173,7 +173,10 @@ namespace VoxelLab.Core
         public RaySampleHit RaySample(Vector3 origin, Vector3 dir, float maxDist, float dt = 0.5f)
         {
             var hit = new RaySampleHit();
+            if (maxDist <= 0f) return hit;
+
             dir = dir.normalized;
+            dt = Mathf.Max(1e-3f, dt);
             float t = 0f;
             Vector3 prev = origin;
             while (t < maxDist)
@@ -217,6 +220,9 @@ namespace VoxelLab.Core
             out int affected)
         {
             affected = 0;
+            if (radius <= 0f)
+                return 0;
+
             int r = Mathf.CeilToInt(radius);
             int x0 = Mathf.FloorToInt(center.x) - r, x1 = Mathf.FloorToInt(center.x) + r;
             int y0 = Mathf.FloorToInt(center.y) - r, y1 = Mathf.FloorToInt(center.y) + r;

@@ -12,8 +12,8 @@ Assets/VoxelLab/
 │   ├── Overlays/     (6b) OverlayController (wireframe/densidad/material/chunk/octree)
 │   ├── Tools/        (7) DrillTool, ExplosionTool, BrushTool, ErosionTool, CutTool, ToolManager
 │   ├── UI/           (8) LabUI (IMGUI)
-│   ├── VoxeLab.cs    Bootstrapper principal
-│   └── VoxeLabBootstrap.cs  Crea la escena por código
+│   ├── VoxeLab.cs            (namespace VoxelLab.Boot) Bootstrapper principal
+│   └── VoxeLabBootstrap.cs   (namespace VoxelLab.Scene) Crea la escena por código
 ├── Shaders/          VoxelMeshing.compute, VoxelDefault/Wireframe/Density/Material.shader
 ├── Scenes/           README de cómo abrir el laboratorio
 └── Tests/Editor/     EditMode tests con NUnit (VoxelCoreTests)

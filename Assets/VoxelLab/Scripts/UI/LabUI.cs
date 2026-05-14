@@ -28,7 +28,7 @@ namespace VoxelLab.UI
         public ToolManager toolManager;
         public OverlayController overlays;
         public CameraSwitcher cameras;
-        public VoxelLab.VoxeLab.VoxeLab lab;
+        public VoxelLab.Boot.VoxeLab lab;
 
         private Rect _windowRect = new Rect(10, 10, 320, 480);
         private string[] _materialNames;

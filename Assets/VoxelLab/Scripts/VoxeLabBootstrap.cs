@@ -71,7 +71,7 @@ namespace VoxelLab.Scene
 
             // Voxel Lab principal
             var labGO = new GameObject("VoxeLab");
-            var lab = labGO.AddComponent<VoxelLab.VoxeLab.VoxeLab>();
+            var lab = labGO.AddComponent<VoxelLab.Boot.VoxeLab>();
             lab.defaultMaterial = defMat;
             lab.wireframeMaterial = wireMat;
             lab.densityMaterial = densMat;
@@ -90,7 +90,7 @@ namespace VoxelLab.Scene
         private System.Collections.IEnumerator LinkBodyNextFrame(VoxelRigidbody rb)
         {
             yield return null;
-            var lab = FindObjectOfType<VoxelLab.VoxeLab.VoxeLab>();
+            var lab = FindObjectOfType<VoxelLab.Boot.VoxeLab>();
             if (lab != null)
             {
                 if (rb != null) rb.World = lab.World;

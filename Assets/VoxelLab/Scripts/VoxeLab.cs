@@ -24,7 +24,7 @@ using VoxelLab.Physics;
 using VoxelLab.Tools;
 using VoxelLab.UI;
 
-namespace VoxelLab.VoxeLab
+namespace VoxelLab.Boot
 {
     public class VoxeLab : MonoBehaviour
     {

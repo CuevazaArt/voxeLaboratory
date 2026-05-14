@@ -1,0 +1,144 @@
+// =====================================================================
+//  VoxelMeshing.compute
+//  VoxelLab :: Meshing (GPU)
+//
+//  Compute shader que genera la malla de un chunk leyendo voxels
+//  empaquetados (uint) y escribiendo en AppendBuffers de vértices e
+//  índices. Una hebra por voxel; emite hasta 6 quads.
+//
+//  Layout uint voxel: bits [0..7]=mat, [8..15]=dens, [16..23]=dur, [24]=solid
+//
+//  Vertex layout: float3 pos, float3 normal, uint color (RGBA8).
+// =====================================================================
+#pragma kernel CSMeshChunk
+
+struct GpuVertex
+{
+    float3 position;
+    float3 normal;
+    uint   color;
+};
+
+uint  _ChunkSize;
+float4 _ChunkOrigin;     // w no usado
+uint  _PaletteCount;
+
+StructuredBuffer<uint>           _Voxels;
+StructuredBuffer<uint>           _Palette;
+AppendStructuredBuffer<GpuVertex> _OutVertices;
+AppendStructuredBuffer<uint>      _OutIndices;
+
+uint Index(uint x, uint y, uint z)
+{
+    return x + _ChunkSize * (y + _ChunkSize * z);
+}
+
+bool InBounds(int x, int y, int z)
+{
+    return x >= 0 && y >= 0 && z >= 0 &&
+           x < (int)_ChunkSize && y < (int)_ChunkSize && z < (int)_ChunkSize;
+}
+
+bool IsSolid(uint packed) { return ((packed >> 24) & 0x1u) != 0u; }
+uint MatId(uint packed)   { return packed & 0xFFu; }
+
+uint GetColor(uint mat)
+{
+    if (mat >= _PaletteCount) return 0xFFFF00FFu; // magenta debug
+    return _Palette[mat];
+}
+
+static const int3 FaceDir[6] = {
+    int3( 1, 0, 0), int3(-1, 0, 0),
+    int3( 0, 1, 0), int3( 0,-1, 0),
+    int3( 0, 0, 1), int3( 0, 0,-1),
+};
+
+static const float3 FaceNormal[6] = {
+    float3( 1, 0, 0), float3(-1, 0, 0),
+    float3( 0, 1, 0), float3( 0,-1, 0),
+    float3( 0, 0, 1), float3( 0, 0,-1),
+};
+
+// 4 esquinas por cara (orden CCW visto desde fuera)
+static const float3 FaceVerts[6][4] = {
+    { float3(1,0,0), float3(1,1,0), float3(1,1,1), float3(1,0,1) }, // +X
+    { float3(0,0,1), float3(0,1,1), float3(0,1,0), float3(0,0,0) }, // -X
+    { float3(0,1,0), float3(0,1,1), float3(1,1,1), float3(1,1,0) }, // +Y
+    { float3(0,0,1), float3(0,0,0), float3(1,0,0), float3(1,0,1) }, // -Y
+    { float3(0,0,1), float3(1,0,1), float3(1,1,1), float3(0,1,1) }, // +Z
+    { float3(1,0,0), float3(0,0,0), float3(0,1,0), float3(1,1,0) }, // -Z
+};
+
+// Nota: como AppendBuffer de índices no permite consultar el contador
+// para enlazar índices con vértices ya escritos, escribimos vértices
+// no indexados (4 por quad) y emitimos 6 índices secuenciales. Eso
+// significa que indexCount = vertexCount * 1.5; los índices son
+// relativos al stream (0,1,2, 0,2,3, 4,5,6, 4,6,7, ...). El consumidor
+// debe ignorar _OutIndices y construir índices secuenciales o usarlos
+// tal cual asumiendo la convención.
+//
+// Aquí los emitimos para coherencia con el path CPU.
+
+void EmitQuad(uint baseId, float3 cellOrigin, int face, uint color)
+{
+    GpuVertex v0, v1, v2, v3;
+    v0.position = cellOrigin + FaceVerts[face][0]; v0.normal = FaceNormal[face]; v0.color = color;
+    v1.position = cellOrigin + FaceVerts[face][1]; v1.normal = FaceNormal[face]; v1.color = color;
+    v2.position = cellOrigin + FaceVerts[face][2]; v2.normal = FaceNormal[face]; v2.color = color;
+    v3.position = cellOrigin + FaceVerts[face][3]; v3.normal = FaceNormal[face]; v3.color = color;
+    _OutVertices.Append(v0);
+    _OutVertices.Append(v1);
+    _OutVertices.Append(v2);
+    _OutVertices.Append(v3);
+    _OutIndices.Append(baseId + 0);
+    _OutIndices.Append(baseId + 1);
+    _OutIndices.Append(baseId + 2);
+    _OutIndices.Append(baseId + 0);
+    _OutIndices.Append(baseId + 2);
+    _OutIndices.Append(baseId + 3);
+}
+
+[numthreads(8,8,8)]
+void CSMeshChunk(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _ChunkSize || id.y >= _ChunkSize || id.z >= _ChunkSize) return;
+
+    uint packed = _Voxels[Index(id.x, id.y, id.z)];
+    if (!IsSolid(packed)) return;
+
+    uint color = GetColor(MatId(packed));
+    float3 cellOrigin = _ChunkOrigin.xyz + float3(id);
+
+    // baseId aproximado: cada voxel reserva hasta 24 vértices; usamos un id local
+    // único para el quad relativo a este voxel. El consumer reconstruye índices.
+    uint voxelLinear = Index(id.x, id.y, id.z) * 24u;
+
+    [unroll]
+    for (int f = 0; f < 6; f++)
+    {
+        int3 d = FaceDir[f];
+        int nx = (int)id.x + d.x;
+        int ny = (int)id.y + d.y;
+        int nz = (int)id.z + d.z;
+
+        bool emit = false;
+        if (!InBounds(nx, ny, nz))
+        {
+            // Frontera del chunk: emitimos por defecto (la CPU se encargará
+            // de quitar dobles caras compartidas si hay vecino, pero como
+            // worst case se ven y el costo es pequeño).
+            emit = true;
+        }
+        else
+        {
+            uint nPacked = _Voxels[Index((uint)nx,(uint)ny,(uint)nz)];
+            emit = !IsSolid(nPacked);
+        }
+
+        if (emit)
+        {
+            EmitQuad(voxelLinear + (uint)f * 4u, cellOrigin, f, color);
+        }
+    }
+}

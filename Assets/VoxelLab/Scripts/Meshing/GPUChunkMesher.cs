@@ -11,6 +11,15 @@
 //  Layout vértice GPU (SoA en buffer): float3 pos, float3 normal, uint color
 //
 //  Dependencias: ChunkMeshBuilder (para fallback), VoxelChunk, MaterialTable.
+//
+//  Invariantes:
+//      - chunk.size debe ser potencia de dos y <= 32.
+//      - no se crean buffers si superan límites de seguridad.
+//      - si falla GPU, el llamador debe usar fallback CPU.
+//
+//  Ejemplo:
+//      if (!gpuMesher.TryBuild(chunk, out var data))
+//          data = ChunkMeshBuilder.Build(world, chunk);
 // =====================================================================
 using System.Runtime.InteropServices;
 using UnityEngine;
@@ -32,6 +41,8 @@ namespace VoxelLab.Meshing
     {
         public const int VERTEX_STRIDE = 3 * 4 + 3 * 4 + 4; // 28 bytes
         public const int MAX_QUADS_PER_VOXEL = 6;
+        public const int MAX_CHUNK_SIZE = 32;
+        public const long MAX_BUFFER_ELEMENTS = 8_000_000;
 
         private readonly ComputeShader _shader;
         private readonly int _kernel;
@@ -59,9 +70,23 @@ namespace VoxelLab.Meshing
             if (!IsAvailable || chunk == null) return false;
 
             int s = chunk.size;
+            if (s <= 0 || s > MAX_CHUNK_SIZE || (s & (s - 1)) != 0)
+            {
+                Debug.LogWarning($"[GPUChunkMesher] chunkSize inválido ({s}). Se usa fallback CPU.");
+                return false;
+            }
+
             int volume = s * s * s;
-            int maxVerts = volume * MAX_QUADS_PER_VOXEL * 4;
-            int maxInds  = volume * MAX_QUADS_PER_VOXEL * 6;
+            long maxVerts64 = (long)volume * MAX_QUADS_PER_VOXEL * 4L;
+            long maxInds64 = (long)volume * MAX_QUADS_PER_VOXEL * 6L;
+            if (maxVerts64 <= 0 || maxInds64 <= 0 || maxVerts64 > MAX_BUFFER_ELEMENTS || maxInds64 > MAX_BUFFER_ELEMENTS)
+            {
+                Debug.LogWarning($"[GPUChunkMesher] buffers fuera de límite (v={maxVerts64}, i={maxInds64}). Se usa fallback CPU.");
+                return false;
+            }
+
+            int maxVerts = (int)maxVerts64;
+            int maxInds = (int)maxInds64;
 
             // Empaquetar voxels -> uint
             uint[] packed = new uint[volume];
@@ -113,7 +138,12 @@ namespace VoxelLab.Meshing
                 _shader.SetBuffer(_kernel, "_OutIndices", indBuf);
                 _shader.SetBuffer(_kernel, "_Palette", palette);
 
-                int groups = Mathf.Max(1, s / 8);
+                int groups = Mathf.Max(1, (s + 7) / 8);
+                if (groups > 65535)
+                {
+                    Debug.LogWarning($"[GPUChunkMesher] dispatch groups fuera de límite: {groups}.");
+                    return false;
+                }
                 _shader.Dispatch(_kernel, groups, groups, groups);
 
                 // Leer contadores

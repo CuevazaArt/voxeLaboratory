@@ -14,10 +14,18 @@
 //      - SVO subdivide y refleja contenido.
 //
 //  Dependencias: NUnit, VoxelLab.Runtime.
+//
+//  Invariantes:
+//      - ninguna prueba depende de Play Mode.
+//      - las pruebas validan coordenadas positivas y negativas.
+//
+//  Ejemplo de ejecución:
+//      Unity Test Runner -> EditMode -> Run All.
 // =====================================================================
 using NUnit.Framework;
 using UnityEngine;
 using VoxelLab.Core;
+using VoxelLab.Tools;
 
 namespace VoxelLab.Tests
 {
@@ -88,11 +96,45 @@ namespace VoxelLab.Tests
         {
             var w = new VoxelWorld(16, 7); // root 128
             w.SetVoxel(40, 0, 0, new Voxel((byte)MaterialId.Rock, 1f, 0.5f));
-            w.octree.Refresh(w);
+            w.octree.Refresh(cc => w.GetChunk(cc, create: false));
             var n = w.octree.Query(new Vector3Int(40, 0, 0));
             Assert.IsNotNull(n);
             Assert.AreEqual(16, n.size); // hoja = leafSize
             Assert.IsTrue(n.anySolid);
+        }
+
+        [Test]
+        public void Octree_Subdivides_OnNegativeCoords()
+        {
+            var w = new VoxelWorld(16, 7); // root 128
+            w.SetVoxel(-40, -1, -8, new Voxel((byte)MaterialId.Rock, 1f, 0.5f));
+            w.octree.Refresh(cc => w.GetChunk(cc, create: false));
+
+            var n = w.octree.Query(new Vector3Int(-40, -1, -8));
+            Assert.IsNotNull(n);
+            Assert.AreEqual(16, n.size);
+            Assert.IsTrue(n.anySolid);
+        }
+
+        [Test]
+        public void Tools_DoNotThrow_OnInvalidParameters()
+        {
+            var w = new VoxelWorld(16);
+            var p = new ToolParameters
+            {
+                radius = -10f,
+                intensity = 99f,
+                material = (byte)MaterialId.Rock,
+                maxDistance = -1f,
+                planeNormal = Vector3.zero,
+            };
+
+            var ray = new Ray(Vector3.zero, Vector3.forward);
+            Assert.DoesNotThrow(() => new DrillTool().Apply(w, ray, p, null));
+            Assert.DoesNotThrow(() => new ExplosionTool().Apply(w, ray, p, null));
+            Assert.DoesNotThrow(() => new BrushTool().Apply(w, ray, p, null));
+            Assert.DoesNotThrow(() => new ErosionTool().Apply(w, ray, p, null));
+            Assert.DoesNotThrow(() => new CutTool().Apply(w, ray, p, null));
         }
     }
 }

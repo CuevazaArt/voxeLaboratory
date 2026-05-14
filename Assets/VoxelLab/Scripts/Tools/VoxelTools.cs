@@ -13,6 +13,14 @@
 //      - CutTool        : corte plano (carve por semiespacio)
 //
 //  Dependencias: VoxelWorld, VolumetricPhysics (para empujar bodies).
+//
+//  Invariantes:
+//      - toda herramienta sanitiza ToolParameters antes de editar voxels.
+//      - operaciones destructivas sólo actúan cuando RaySample detecta impacto.
+//
+//  Ejemplo:
+//      IVoxelTool tool = new ExplosionTool();
+//      tool.Apply(world, ray, parameters, rigidbodies);
 // =====================================================================
 using System.Collections.Generic;
 using UnityEngine;
@@ -21,6 +29,19 @@ using VoxelLab.Physics;
 
 namespace VoxelLab.Tools
 {
+    internal static class ToolInputSanitizer
+    {
+        public static ToolParameters Sanitize(in ToolParameters raw)
+        {
+            ToolParameters p = raw;
+            p.radius = Mathf.Max(0.5f, raw.radius);
+            p.intensity = Mathf.Clamp01(raw.intensity);
+            p.maxDistance = Mathf.Clamp(raw.maxDistance, 1f, 2048f);
+            p.planeNormal = raw.planeNormal.sqrMagnitude < 1e-6f ? Vector3.up : raw.planeNormal.normalized;
+            return p;
+        }
+    }
+
     public interface IVoxelTool
     {
         string Name { get; }
@@ -42,9 +63,10 @@ namespace VoxelLab.Tools
         public string Name => "Drill";
         public void Apply(VoxelWorld world, Ray ray, ToolParameters p, IList<VoxelRigidbody> bodies)
         {
+            p = ToolInputSanitizer.Sanitize(p);
             var hit = world.RaySample(ray.origin, ray.direction, p.maxDistance);
             if (!hit.hit) return;
-            world.CarveSphere(hit.position, Mathf.Max(0.5f, p.radius), Mathf.Clamp01(p.intensity));
+            world.CarveSphere(hit.position, p.radius, p.intensity);
         }
     }
 
@@ -53,6 +75,7 @@ namespace VoxelLab.Tools
         public string Name => "Explosion";
         public void Apply(VoxelWorld world, Ray ray, ToolParameters p, IList<VoxelRigidbody> bodies)
         {
+            p = ToolInputSanitizer.Sanitize(p);
             var hit = world.RaySample(ray.origin, ray.direction, p.maxDistance);
             if (!hit.hit) return;
             var res = world.Explosion(hit.position, p.radius, p.intensity);
@@ -79,9 +102,10 @@ namespace VoxelLab.Tools
         public string Name => "Brush";
         public void Apply(VoxelWorld world, Ray ray, ToolParameters p, IList<VoxelRigidbody> bodies)
         {
+            p = ToolInputSanitizer.Sanitize(p);
             var hit = world.RaySample(ray.origin, ray.direction, p.maxDistance);
             Vector3 c = hit.hit ? hit.position : ray.origin + ray.direction * Mathf.Min(20f, p.maxDistance);
-            world.FillSphere(c, p.radius, p.material, Mathf.Clamp01(p.intensity));
+            world.FillSphere(c, p.radius, p.material, p.intensity);
         }
     }
 
@@ -90,6 +114,7 @@ namespace VoxelLab.Tools
         public string Name => "Erosion";
         public void Apply(VoxelWorld world, Ray ray, ToolParameters p, IList<VoxelRigidbody> bodies)
         {
+            p = ToolInputSanitizer.Sanitize(p);
             var hit = world.RaySample(ray.origin, ray.direction, p.maxDistance);
             if (!hit.hit) return;
             // Erosión: reduce densidad sin eliminar el material instantáneamente.
@@ -118,9 +143,10 @@ namespace VoxelLab.Tools
         public string Name => "Cut";
         public void Apply(VoxelWorld world, Ray ray, ToolParameters p, IList<VoxelRigidbody> bodies)
         {
+            p = ToolInputSanitizer.Sanitize(p);
             var hit = world.RaySample(ray.origin, ray.direction, p.maxDistance);
             if (!hit.hit) return;
-            Vector3 n = p.planeNormal.sqrMagnitude < 1e-3f ? hit.normal : p.planeNormal.normalized;
+            Vector3 n = p.planeNormal.sqrMagnitude < 1e-3f ? hit.normal : p.planeNormal;
             int r = Mathf.CeilToInt(p.radius);
             for (int z = -r; z <= r; z++)
             for (int y = -r; y <= r; y++)

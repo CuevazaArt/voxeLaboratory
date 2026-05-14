@@ -8,14 +8,25 @@
 //
 //  Uso típico:
 //      - MarkDirty(chunkCoord)  -> al editar voxels
-//      - Refresh(world)         -> agrega LOD (densidad media, material
+//      - Refresh(tryGetChunk)   -> agrega LOD (densidad media, material
 //                                  dominante) bottom-up para visualización
 //                                  y para decidir qué resolución mostrar.
 //      - Query(pos)             -> nodo más profundo no-vacío que contiene
 //                                  la posición.
 //
-//  Dependencias: SVONode, VoxelWorld (solo en Refresh).
+//  Dependencias: SVONode, VoxelChunk, MaterialTable.
+//
+//  Invariantes:
+//      - rootSize y leafSize son potencias de dos.
+//      - leafSize <= rootSize.
+//      - Query/DescendOrCreate operan en coordenadas de voxel global.
+//
+//  Ejemplo:
+//      octree.MarkDirty(chunkCoord);
+//      octree.Refresh(cc => world.GetChunk(cc, create: false));
+//      var node = octree.Query(voxelPos);
 // =====================================================================
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using VoxelLab.Core;
@@ -89,18 +100,22 @@ namespace VoxelLab.SVO
         }
 
         /// <summary>Recalcula agregados LOD bottom-up para nodos dirty.</summary>
-        public void Refresh(VoxelWorld world)
+        public void Refresh(Func<Vector3Int, VoxelChunk> tryGetChunk)
         {
-            RefreshRecursive(root, world);
+            if (tryGetChunk == null) throw new ArgumentNullException(nameof(tryGetChunk));
+            RefreshRecursive(root, tryGetChunk);
         }
 
-        private void RefreshRecursive(SVONode node, VoxelWorld world)
+        private void RefreshRecursive(SVONode node, Func<Vector3Int, VoxelChunk> tryGetChunk)
         {
             if (node.isLeaf)
             {
                 // Calcular agregados desde el chunk correspondiente (si existe).
-                var cc = new Vector3Int(node.origin.x / leafSize, node.origin.y / leafSize, node.origin.z / leafSize);
-                var chunk = world.GetChunk(cc, create: false);
+                var cc = new Vector3Int(
+                    FloorDiv(node.origin.x, leafSize),
+                    FloorDiv(node.origin.y, leafSize),
+                    FloorDiv(node.origin.z, leafSize));
+                var chunk = tryGetChunk(cc);
                 if (chunk == null || chunk.empty)
                 {
                     node.anySolid = false;
@@ -132,22 +147,26 @@ namespace VoxelLab.SVO
             float acc = 0f;
             bool anyS = false;
             int[] mhist = new int[MaterialTable.Count];
+            int childCount = 0;
             for (int i = 0; i < 8; i++)
             {
                 var c = node.children[i];
                 if (c == null) continue;
-                if (c.dirty) RefreshRecursive(c, world);
+                if (c.dirty) RefreshRecursive(c, tryGetChunk);
                 acc += c.averageDensidad;
                 anyS |= c.anySolid;
                 if (c.dominantMaterial < mhist.Length) mhist[c.dominantMaterial]++;
+                childCount++;
             }
             int bestM = 0;
             for (int i = 1; i < mhist.Length; i++) if (mhist[i] > mhist[bestM]) bestM = i;
-            node.averageDensidad = acc / 8f;
+            node.averageDensidad = childCount > 0 ? acc / childCount : 0f;
             node.anySolid = anyS;
             node.dominantMaterial = (byte)bestM;
             node.dirty = false;
         }
+
+        private static int FloorDiv(int a, int b) => (a >= 0) ? a / b : -((-a + b - 1) / b);
 
         /// <summary>Recolecta todos los nodos visibles dado un punto de cámara y un budget LOD.</summary>
         public void CollectVisible(Vector3 cameraPos, float lodScale, List<SVONode> outList)

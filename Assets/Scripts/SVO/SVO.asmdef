@@ -1,0 +1,17 @@
+{
+    "name": "VoxeLaboratory.SVO",
+    "rootNamespace": "VoxeLaboratory.SVO",
+    "references": [
+        "VoxeLaboratory.VoxelCore",
+        "VoxeLaboratory.ChunkSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

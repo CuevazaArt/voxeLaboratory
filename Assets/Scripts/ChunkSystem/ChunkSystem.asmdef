@@ -1,0 +1,16 @@
+{
+    "name": "VoxeLaboratory.ChunkSystem",
+    "rootNamespace": "VoxeLaboratory.ChunkSystem",
+    "references": [
+        "VoxeLaboratory.VoxelCore"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

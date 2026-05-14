@@ -1,0 +1,48 @@
+name: ci
+
+# Triggers per directive §7: only PRs and pushes to main.  Heavy / matrix
+# jobs stay manual to keep CI minutes low.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel superseded runs to avoid wasting minutes on stale commits.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  headless-tests:
+    name: Headless engine tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore Tests/Headless/VoxeLaboratory.Headless.Tests.csproj
+
+      - name: Build
+        run: dotnet build Tests/Headless/VoxeLaboratory.Headless.Tests.csproj --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test Tests/Headless/VoxeLaboratory.Headless.Tests.csproj --configuration Release --no-build --logger "console;verbosity=normal"

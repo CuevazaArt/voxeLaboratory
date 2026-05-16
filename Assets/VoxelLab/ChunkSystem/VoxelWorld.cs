@@ -67,6 +67,16 @@ namespace VoxelLab.Core
         // Eventos para que el meshing/UI reaccione.
         public event Action<VoxelChunk> OnChunkDirty;
 
+        // Transacción de edición activa (Undo/Redo + batching de eventos dirty).
+        private EditTransaction _currentTx;
+        private int _txDepth;
+
+        /// <summary>True si hay una transacción de edición abierta.</summary>
+        public bool IsEditing => _txDepth > 0;
+
+        /// <summary>Transacción activa (null si no hay).</summary>
+        public EditTransaction CurrentTransaction => _currentTx;
+
         public VoxelWorld(int chunkSize = 16, int octreeSizePow2 = 9 /* 512 */)
         {
             this.chunkSize = chunkSize;
@@ -125,9 +135,58 @@ namespace VoxelLab.Core
             var cc = ChunkCoord(x, y, z);
             var chunk = GetChunk(cc, create: true);
             var lc = LocalCoord(x, y, z);
+            int idx = chunk.Index(lc.x, lc.y, lc.z);
+            Voxel prev = chunk.voxels[idx];
             chunk.SetLocal(lc.x, lc.y, lc.z, v);
+            NotifyEdit(x, y, z, cc, chunk, prev, v);
+        }
+
+        // -----------------------------------------------------------------
+        //  Transacciones de edición (Undo/Redo + batching)
+        // -----------------------------------------------------------------
+
+        /// <summary>Inicia o anida una transacción. Devuelve la activa.</summary>
+        public EditTransaction BeginEdit()
+        {
+            if (_currentTx == null) _currentTx = new EditTransaction();
+            _txDepth++;
+            return _currentTx;
+        }
+
+        /// <summary>
+        /// Cierra la transacción más interna. Cuando se cierra la externa,
+        /// emite un <see cref="OnChunkDirty"/> por chunk afectado y devuelve
+        /// la transacción completa (consumible por un <c>UndoStack</c>).
+        /// </summary>
+        public EditTransaction EndEdit()
+        {
+            if (_txDepth <= 0) return null;
+            _txDepth--;
+            if (_txDepth > 0) return _currentTx;
+            var tx = _currentTx;
+            _currentTx = null;
+            if (tx != null)
+            {
+                foreach (var c in tx.AffectedChunks)
+                {
+                    if (!c.empty) c.RecomputeEmpty();
+                    OnChunkDirty?.Invoke(c);
+                }
+            }
+            return tx;
+        }
+
+        /// <summary>
+        /// Si hay transacción activa, registra la edición y difiere el evento dirty.
+        /// Si no, marca octree y dispara OnChunkDirty inmediatamente.
+        /// </summary>
+        private void NotifyEdit(int x, int y, int z, Vector3Int cc, VoxelChunk chunk, Voxel prev, Voxel curr)
+        {
             octree.MarkDirty(cc);
-            OnChunkDirty?.Invoke(chunk);
+            if (_currentTx != null)
+                _currentTx.Record(x, y, z, prev, curr, chunk);
+            else
+                OnChunkDirty?.Invoke(chunk);
         }
 
         /// <summary>Carve (vacía) una esfera de radio dado en coords mundo.</summary>
@@ -281,6 +340,7 @@ namespace VoxelLab.Core
                     chunk.dirty = true;
                     if (nv.solido) chunk.empty = false;
                     dirtyChunks.Add(chunk);
+                    if (_currentTx != null) _currentTx.Record(x, y, z, v, nv, chunk);
                     affected++;
                 }
             }
@@ -289,7 +349,8 @@ namespace VoxelLab.Core
             {
                 if (!c.empty) c.RecomputeEmpty();
                 octree.MarkDirty(ChunkCoord(c.origin.x, c.origin.y, c.origin.z));
-                OnChunkDirty?.Invoke(c);
+                if (_currentTx != null) _currentTx.AddChunk(c);
+                else OnChunkDirty?.Invoke(c);
             }
             return affected;
         }
@@ -339,6 +400,7 @@ namespace VoxelLab.Core
                     chunk.dirty = true;
                     if (nv.solido) chunk.empty = false;
                     dirtyChunks.Add(chunk);
+                    if (_currentTx != null) _currentTx.Record(x, y, z, v, nv, chunk);
                     affected++;
 
                     bool destroyed = prevDens >= 0.5f && nv.densidad < 0.5f;
@@ -361,7 +423,8 @@ namespace VoxelLab.Core
             {
                 if (!c.empty) c.RecomputeEmpty();
                 octree.MarkDirty(ChunkCoord(c.origin.x, c.origin.y, c.origin.z));
-                OnChunkDirty?.Invoke(c);
+                if (_currentTx != null) _currentTx.AddChunk(c);
+                else OnChunkDirty?.Invoke(c);
             }
             return affected;
         }

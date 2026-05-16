@@ -97,6 +97,7 @@ namespace VoxelLab.UI
 
         private void DrawWindow(int id)
         {
+            DrawUndoRedo();
             GUILayout.Label("Herramienta");
             if (toolManager != null && _toolNames != null)
             {
@@ -154,6 +155,22 @@ namespace VoxelLab.UI
             DrawDebris();
 
             GUI.DragWindow();
+        }
+
+        private void DrawUndoRedo()
+        {
+            if (toolManager == null || toolManager.Undo == null) return;
+            var undo = toolManager.Undo;
+            GUILayout.BeginHorizontal();
+            GUI.enabled = undo.UndoCount > 0;
+            if (GUILayout.Button($"\u21B6 Undo ({undo.UndoCount})") && lab != null && lab.World != null)
+                undo.Undo(lab.World);
+            GUI.enabled = undo.RedoCount > 0;
+            if (GUILayout.Button($"Redo ({undo.RedoCount}) \u21B7") && lab != null && lab.World != null)
+                undo.Redo(lab.World);
+            GUI.enabled = true;
+            GUILayout.EndHorizontal();
+            GUILayout.Space(4);
         }
 
         private void DrawTargets()

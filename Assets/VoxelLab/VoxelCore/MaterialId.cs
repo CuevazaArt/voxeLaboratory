@@ -24,6 +24,7 @@ namespace VoxelLab.Core
         Crystal = 5,
         Lava    = 6,
         Ice     = 7,
+        Sand    = 8,
     }
 
     /// <summary>Datos de presentación/dureza por material.</summary>
@@ -62,6 +63,7 @@ namespace VoxelLab.Core
             new MaterialDef(MaterialId.Crystal, "Crystal", new Color(0.6f,0.85f,1.0f),        0.5f, 1.0f),
             new MaterialDef(MaterialId.Lava,    "Lava",    new Color(1.0f,0.35f,0.05f),       0.1f, 0.8f),
             new MaterialDef(MaterialId.Ice,     "Ice",     new Color(0.75f,0.9f,1.0f),        0.4f, 1.0f),
+            new MaterialDef(MaterialId.Sand,    "Sand",    new Color(0.93f,0.85f,0.55f),      0.25f,0.95f),
         };
 
         // Tabla viva (mutable). Inicialmente apunta a los defaults.

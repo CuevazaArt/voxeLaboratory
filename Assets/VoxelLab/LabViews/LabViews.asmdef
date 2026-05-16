@@ -7,7 +7,10 @@
         "VoxelLab.ChunkSystem",
         "VoxelLab.MeshingGPU",
         "VoxelLab.PhysicsVolumetric",
-        "VoxelLab.Tools"
+        "VoxelLab.PlanetGenerator",
+        "VoxelLab.Tools",
+        "Unity.Collections",
+        "Unity.Mathematics"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

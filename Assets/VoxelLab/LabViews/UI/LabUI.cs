@@ -20,6 +20,7 @@ using VoxelLab.Core;
 using VoxelLab.Cameras;
 using VoxelLab.Overlays;
 using VoxelLab.Physics;
+using VoxelLab.Planet;
 using VoxelLab.Tools;
 
 namespace VoxelLab.UI
@@ -32,9 +33,17 @@ namespace VoxelLab.UI
         public VoxelLab.Boot.VoxeLab lab;
         public ProjectileLauncher launcher;
 
-        private Rect _windowRect = new Rect(10, 10, 360, 680);
+        [Header("Sandbox extendido")]
+        public TargetDef[] availableTargets;
+        public Vector3 targetSpawnOrigin = Vector3.zero;
+        public DebrisSimulator debrisSimulator;
+
+        private Rect _windowRect = new Rect(10, 10, 380, 760);
         private string[] _materialNames;
         private string[] _toolNames;
+        private string[] _projectileNames;
+        private string[] _targetNames;
+        private int _activeTargetIndex = 0;
         private bool _show = true;
 
         private void Start()
@@ -46,6 +55,30 @@ namespace VoxelLab.UI
             {
                 _toolNames = new string[toolManager.tools.Length];
                 for (int i = 0; i < _toolNames.Length; i++) _toolNames[i] = toolManager.tools[i].Name;
+            }
+            RefreshProjectileNames();
+            RefreshTargetNames();
+        }
+
+        private void RefreshProjectileNames()
+        {
+            if (launcher == null || launcher.availableTypes == null) { _projectileNames = null; return; }
+            _projectileNames = new string[launcher.availableTypes.Length];
+            for (int i = 0; i < _projectileNames.Length; i++)
+            {
+                var t = launcher.availableTypes[i];
+                _projectileNames[i] = t != null ? (string.IsNullOrEmpty(t.displayName) ? t.name : t.displayName) : "-";
+            }
+        }
+
+        private void RefreshTargetNames()
+        {
+            if (availableTargets == null) { _targetNames = null; return; }
+            _targetNames = new string[availableTargets.Length];
+            for (int i = 0; i < _targetNames.Length; i++)
+            {
+                var t = availableTargets[i];
+                _targetNames[i] = t != null ? (string.IsNullOrEmpty(t.displayName) ? t.name : t.displayName) : "-";
             }
         }
 
@@ -117,8 +150,38 @@ namespace VoxelLab.UI
             }
 
             DrawBallistics();
+            DrawTargets();
+            DrawDebris();
 
             GUI.DragWindow();
+        }
+
+        private void DrawTargets()
+        {
+            if (availableTargets == null || availableTargets.Length == 0) return;
+            if (_targetNames == null || _targetNames.Length != availableTargets.Length) RefreshTargetNames();
+
+            GUILayout.Space(8);
+            GUILayout.Label("Targets (T = spawn)");
+            int newIdx = GUILayout.SelectionGrid(_activeTargetIndex, _targetNames, 3);
+            _activeTargetIndex = Mathf.Clamp(newIdx, 0, availableTargets.Length - 1);
+            if (GUILayout.Button("Spawn target en origen"))
+            {
+                if (lab != null && lab.World != null)
+                {
+                    int filled = TargetSpawner.Spawn(lab.World, availableTargets[_activeTargetIndex], targetSpawnOrigin);
+                    Debug.Log($"TargetSpawner: {filled} voxels");
+                }
+            }
+        }
+
+        private void DrawDebris()
+        {
+            if (debrisSimulator == null) return;
+            GUILayout.Space(8);
+            GUILayout.Label("Debris");
+            GUILayout.Label($"Activos: {debrisSimulator.ActiveCount} / {debrisSimulator.Capacity}");
+            if (GUILayout.Button("Limpiar debris")) debrisSimulator.Clear();
         }
 
         private void DrawBallistics()
@@ -127,6 +190,16 @@ namespace VoxelLab.UI
 
             GUILayout.Space(8);
             GUILayout.Label("Balística (sandbox)");
+
+            if (launcher.availableTypes != null && launcher.availableTypes.Length > 0)
+            {
+                if (_projectileNames == null || _projectileNames.Length != launcher.availableTypes.Length)
+                    RefreshProjectileNames();
+                GUILayout.Label($"Tipo activo (1-9): {(launcher.ActiveType != null ? launcher.ActiveType.displayName : "-")}");
+                int newType = GUILayout.SelectionGrid(launcher.activeIndex, _projectileNames, 3);
+                launcher.activeIndex = Mathf.Clamp(newType, 0, launcher.availableTypes.Length - 1);
+                GUILayout.Label($"Modo: {launcher.LastImpactMode}");
+            }
 
             GUILayout.Label($"Masa: {launcher.mass:0.00}");
             launcher.mass = GUILayout.HorizontalSlider(launcher.mass, 0.05f, 50f);

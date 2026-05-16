@@ -5,6 +5,7 @@
         "VoxelLab.VoxelCore",
         "VoxelLab.SVO",
         "VoxelLab.ChunkSystem",
+        "VoxelLab.MeshingGPU",
         "VoxelLab.PhysicsVolumetric",
         "VoxelLab.PlanetGenerator",
         "VoxelLab.Tools",

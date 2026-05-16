@@ -3,7 +3,10 @@
     "rootNamespace": "VoxelLab.Physics",
     "references": [
         "VoxelLab.VoxelCore",
-        "VoxelLab.ChunkSystem"
+        "VoxelLab.ChunkSystem",
+        "Unity.Burst",
+        "Unity.Collections",
+        "Unity.Mathematics"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

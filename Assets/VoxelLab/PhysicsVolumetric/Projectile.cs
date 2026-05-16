@@ -27,6 +27,8 @@ namespace VoxelLab.Physics
     public class Projectile
     {
         public readonly VolumetricBody body;
+        /// <summary>Tipo autoral asociado (puede ser null si se creó ad-hoc).</summary>
+        public ProjectileTypeDef type;
 
         /// <summary>Energía cinética actual: 0.5 * m * |v|^2.</summary>
         public float KineticEnergy
@@ -55,6 +57,15 @@ namespace VoxelLab.Physics
                 drag = Mathf.Max(0f, drag),
             };
             return new Projectile(b);
+        }
+
+        /// <summary>Variante que asocia un <see cref="ProjectileTypeDef"/> al proyectil.</summary>
+        public static Projectile Create(Vector3 position, Vector3 velocity, ProjectileTypeDef type)
+        {
+            if (type == null) return Create(position, velocity, 1f, 0.25f, 0f);
+            var p = Create(position, velocity, type.mass, type.radius, type.drag);
+            p.type = type;
+            return p;
         }
     }
 }

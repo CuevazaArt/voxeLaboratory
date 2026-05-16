@@ -54,6 +54,18 @@ namespace VoxelLab.Tests
         }
 
         [Test]
+        public void ChunkCoord_AndLocalCoord_AreConsistent_ForNegativePositions()
+        {
+            var w = new VoxelWorld(16);
+
+            var cc = w.ChunkCoord(-1, -16, -17);
+            var lc = w.LocalCoord(-1, -16, -17);
+
+            Assert.AreEqual(new Vector3Int(-1, -1, -2), cc);
+            Assert.AreEqual(new Vector3Int(15, 0, 15), lc);
+        }
+
+        [Test]
         public void FillThenCarveSphere_RemovesSolids()
         {
             var w = new VoxelWorld(16);
@@ -64,6 +76,21 @@ namespace VoxelLab.Tests
             // Centro debe estar vacío
             var c = w.GetVoxel(0, 0, 0);
             Assert.IsFalse(c.solido);
+        }
+
+        [Test]
+        public void CarveSphere_AcrossChunkBoundary_RaisesDirtyOnMultipleChunks()
+        {
+            var w = new VoxelWorld(16);
+            w.FillSphere(new Vector3(15.5f, 0f, 0f), 3f, (byte)MaterialId.Rock);
+
+            var dirtyChunks = new System.Collections.Generic.HashSet<Vector3Int>();
+            w.OnChunkDirty += c => dirtyChunks.Add(c.origin);
+
+            int carved = w.CarveSphere(new Vector3(15.5f, 0f, 0f), 2.5f, 1f);
+
+            Assert.Greater(carved, 0);
+            Assert.GreaterOrEqual(dirtyChunks.Count, 2, "Debe afectar chunks a ambos lados del limite X=16.");
         }
 
         [Test]
@@ -161,6 +188,59 @@ namespace VoxelLab.Tests
             Assert.DoesNotThrow(() => new CutTool().Apply(w, ray, p, null));
         }
 
+        [Test]
+        public void ToolInputSanitizer_ClampsNumericRanges()
+        {
+            var t = System.Type.GetType("VoxelLab.Tools.ToolInputSanitizer, VoxelLab.Tools");
+            Assert.IsNotNull(t, "No se encontro ToolInputSanitizer en el asmdef VoxelLab.Tools.");
+
+            var m = t.GetMethod("Sanitize", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            Assert.IsNotNull(m, "No se encontro metodo estatico Sanitize.");
+
+            var raw = new ToolParameters
+            {
+                radius = -5f,
+                intensity = 2.25f,
+                material = (byte)MaterialId.Rock,
+                maxDistance = -40f,
+                planeNormal = new Vector3(10f, 0f, 0f),
+            };
+
+            object[] args = { raw };
+            var sanitized = (ToolParameters)m.Invoke(null, args);
+
+            Assert.AreEqual(0.5f, sanitized.radius, 1e-6f);
+            Assert.AreEqual(1f, sanitized.intensity, 1e-6f);
+            Assert.AreEqual(1f, sanitized.maxDistance, 1e-6f);
+            Assert.AreEqual(1f, sanitized.planeNormal.magnitude, 1e-6f);
+            Assert.AreEqual(new Vector3(1f, 0f, 0f), sanitized.planeNormal);
+        }
+
+        [Test]
+        public void ToolInputSanitizer_ReplacesDegenerateNormalWithUp()
+        {
+            var t = System.Type.GetType("VoxelLab.Tools.ToolInputSanitizer, VoxelLab.Tools");
+            Assert.IsNotNull(t);
+
+            var m = t.GetMethod("Sanitize", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            Assert.IsNotNull(m);
+
+            var raw = new ToolParameters
+            {
+                radius = 1f,
+                intensity = 0.2f,
+                material = (byte)MaterialId.Dirt,
+                maxDistance = 5000f,
+                planeNormal = Vector3.zero,
+            };
+
+            object[] args = { raw };
+            var sanitized = (ToolParameters)m.Invoke(null, args);
+
+            Assert.AreEqual(2048f, sanitized.maxDistance, 1e-6f);
+            Assert.AreEqual(Vector3.up, sanitized.planeNormal);
+        }
+
         // -----------------------------------------------------------------
         //  Ballistics sandbox
         // -----------------------------------------------------------------
@@ -237,6 +317,325 @@ namespace VoxelLab.Tests
             Assert.GreaterOrEqual(r0, baseR);
             Assert.Greater(r1, r0);
             Assert.LessOrEqual(r2, maxR + 1e-6f);
+        }
+
+        // =================================================================
+        //  Fase 1 — Material registry
+        // =================================================================
+
+        [TearDown]
+        public void RestoreMaterialDefaults()
+        {
+            MaterialTable.ResetToDefaults();
+        }
+
+        private static VoxelMaterialDef MakeMat(byte id, string name,
+            DestructionMode mode = DestructionMode.Crumble, string debrisKey = "")
+        {
+            var m = ScriptableObject.CreateInstance<VoxelMaterialDef>();
+            m.id = id;
+            m.displayName = name;
+            m.color = Color.white;
+            m.densidadBase = 1f;
+            m.durezaBase = 0.5f;
+            m.destructionMode = mode;
+            m.debrisProfileKey = debrisKey;
+            return m;
+        }
+
+        [Test]
+        public void MaterialTable_Apply_RejectsDuplicateIds()
+        {
+            var a = MakeMat(3, "A");
+            var b = MakeMat(3, "B");
+            Assert.Throws<System.InvalidOperationException>(() =>
+                MaterialTable.Apply(new[] { a, b }));
+        }
+
+        [Test]
+        public void MaterialTable_Apply_PreservesAirSlot_WhenMissing()
+        {
+            var rock = MakeMat(1, "Rock");
+            var iron = MakeMat(3, "Iron");
+            MaterialTable.Apply(new[] { rock, iron });
+            Assert.AreEqual(0f, MaterialTable.Get(0).color.a, 1e-6f, "Slot 0 debe permanecer Air.");
+            Assert.AreEqual("Air", MaterialTable.Get(0).name);
+        }
+
+        [Test]
+        public void MaterialTable_GetExtended_FallsBackToAir_WhenIdOutOfRange()
+        {
+            MaterialTable.ResetToDefaults();
+            var ext = MaterialTable.GetExtended((byte)250);
+            Assert.AreEqual(0, ext.id);
+        }
+
+        [Test]
+        public void MaterialTable_Apply_PropagatesDebrisProfileKey()
+        {
+            var glass = MakeMat(5, "Glass", DestructionMode.Shatter, "GlassShards");
+            MaterialTable.Apply(new[] { glass });
+            var ext = MaterialTable.GetExtended((byte)5);
+            Assert.AreEqual("GlassShards", ext.debrisProfileKey);
+            Assert.AreEqual(DestructionMode.Shatter, ext.destructionMode);
+        }
+
+        // =================================================================
+        //  Fase 2 — API destructiva enriquecida + FillBox/Cylinder
+        // =================================================================
+
+        [Test]
+        public void Explosion_ReportsRemovedByMaterial_AndSamples()
+        {
+            var w = new VoxelWorld(16);
+            w.FillSphere(Vector3.zero, 5f, (byte)MaterialId.Iron);
+
+            var res = w.Explosion(Vector3.zero, 4f, 1.5f, sampleStride: 2);
+
+            Assert.IsNotNull(res.removedByMaterial);
+            Assert.AreEqual(MaterialTable.Count, res.removedByMaterial.Length);
+            Assert.Greater(res.removedByMaterial[(byte)MaterialId.Iron], 0);
+            Assert.AreEqual(0, res.removedByMaterial[(byte)MaterialId.Air]);
+            Assert.IsNotNull(res.samples);
+            Assert.LessOrEqual(res.samples.Count, res.voxelsRemoved);
+            Assert.Greater(res.voxelsRemoved, 0);
+        }
+
+        [Test]
+        public void Explosion_SampleStrideClamp_NeverFails()
+        {
+            var w = new VoxelWorld(16);
+            w.FillSphere(Vector3.zero, 3f, (byte)MaterialId.Rock);
+            Assert.DoesNotThrow(() => w.Explosion(Vector3.zero, 2f, 1f, sampleStride: 0));
+            Assert.DoesNotThrow(() => w.Explosion(Vector3.zero, 2f, 1f, sampleStride: -5));
+        }
+
+        [Test]
+        public void FillBox_PlacesExactCount_AndClampsExtent()
+        {
+            var w = new VoxelWorld(16);
+            int placed = w.FillBox(Vector3.zero, new Vector3Int(4, 6, 8), (byte)MaterialId.Rock);
+            Assert.AreEqual(4 * 6 * 8, placed);
+            Assert.IsTrue(w.GetVoxel(0, 0, 0).solido);
+            // Extent negativo se clampa a 1.
+            int placedNeg = w.FillBox(new Vector3(50, 0, 0), new Vector3Int(-3, -1, 2), (byte)MaterialId.Dirt);
+            Assert.AreEqual(1 * 1 * 2, placedNeg);
+        }
+
+        [Test]
+        public void FillBox_RejectsOverflow()
+        {
+            var w = new VoxelWorld(16);
+            int placed = w.FillBox(Vector3.zero, new Vector3Int(256, 256, 256), (byte)MaterialId.Rock);
+            Assert.AreEqual(0, placed, "Volumen 256^3 debe exceder MAX_FILL_VOXELS.");
+        }
+
+        [Test]
+        public void FillCylinder_PlacesSolidsAlongAxis()
+        {
+            var w = new VoxelWorld(16);
+            int placed = w.FillCylinder(Vector3.zero, radius: 3f, height: 6f, axis: 1,
+                material: (byte)MaterialId.Iron);
+            Assert.Greater(placed, 0);
+            Assert.IsTrue(w.GetVoxel(0, 0, 0).solido);
+            Assert.IsTrue(w.GetVoxel(0, 2, 0).solido);
+            Assert.IsFalse(w.GetVoxel(10, 0, 0).solido);
+        }
+
+        // =================================================================
+        //  Fase 3 — Proyectiles tipados
+        // =================================================================
+
+        private static ProjectileTypeDef MakeProjectileType(ProjectileImpactMode mode)
+        {
+            var t = ScriptableObject.CreateInstance<ProjectileTypeDef>();
+            t.displayName = mode.ToString();
+            t.mass = 1f;
+            t.radius = 0.3f;
+            t.initialSpeed = 50f;
+            t.drag = 0f;
+            t.lifetimeSeconds = 5f;
+            t.impactMode = mode;
+            return t;
+        }
+
+        [Test]
+        public void Projectile_CreateFromType_AssociatesType()
+        {
+            var t = MakeProjectileType(ProjectileImpactMode.Kinetic);
+            var p = Projectile.Create(Vector3.zero, Vector3.forward * 10f, t);
+            Assert.IsNotNull(p.type);
+            Assert.AreSame(t, p.type);
+            Assert.AreEqual(1f, p.body.mass, 1e-6f);
+        }
+
+        [Test]
+        public void Projectile_CreateFromNullType_FallsBackToDefaults()
+        {
+            var p = Projectile.Create(Vector3.zero, Vector3.forward, (ProjectileTypeDef)null);
+            Assert.IsNull(p.type);
+            Assert.Greater(p.body.mass, 0f);
+        }
+
+        // =================================================================
+        //  Fase 4 — DebrisProfile + DebrisSimulator
+        // =================================================================
+
+        private static DebrisProfileDef MakeDebrisProfile(string key, float sampleFraction = 1f)
+        {
+            var p = ScriptableObject.CreateInstance<DebrisProfileDef>();
+            p.profileKey = key;
+            p.lifetimeSeconds = 1f;
+            p.initialSpeedMin = 1f;
+            p.initialSpeedMax = 2f;
+            p.spreadAngleDeg = 30f;
+            p.sampleFraction = sampleFraction;
+            p.scale = 0.5f;
+            p.gravityScale = 0f;
+            return p;
+        }
+
+        [Test]
+        public void Debris_RegisterProfile_AssignsIndex_AndIsIdempotent()
+        {
+            using var sim = new DebrisSimulator(64);
+            var p = MakeDebrisProfile("Default");
+            int a = sim.RegisterProfile(p);
+            int b = sim.RegisterProfile(p);
+            Assert.GreaterOrEqual(a, 0);
+            Assert.AreEqual(a, b);
+            Assert.AreEqual(1, sim.Profiles.Count);
+        }
+
+        [Test]
+        public void Debris_SampleFractionZero_SpawnsNothing()
+        {
+            using var sim = new DebrisSimulator(64);
+            sim.RegisterProfile(MakeDebrisProfile("Default", sampleFraction: 0f));
+            var result = new ExplosionResult
+            {
+                voxelsRemoved = 4,
+                samples = new System.Collections.Generic.List<DestructionSample>
+                {
+                    new DestructionSample { position = Vector3.zero, material = 1, removedDensity = 1f },
+                    new DestructionSample { position = Vector3.right, material = 1, removedDensity = 1f },
+                },
+            };
+            int spawned = sim.SpawnFromExplosion(result, Vector3.up,
+                profileKeyFallback: "Default", rngSeed: 1);
+            Assert.AreEqual(0, spawned);
+            Assert.AreEqual(0, sim.ActiveCount);
+        }
+
+        [Test]
+        public void Debris_SpawnFromExplosion_RespectsCapacity()
+        {
+            const int cap = 4;
+            using var sim = new DebrisSimulator(cap);
+            sim.RegisterProfile(MakeDebrisProfile("Default", sampleFraction: 1f));
+
+            var samples = new System.Collections.Generic.List<DestructionSample>();
+            for (int i = 0; i < 50; i++)
+                samples.Add(new DestructionSample { position = Vector3.zero, material = 1, removedDensity = 1f });
+            var result = new ExplosionResult { voxelsRemoved = samples.Count, samples = samples };
+
+            sim.SpawnFromExplosion(result, Vector3.up, "Default", rngSeed: 1);
+            Assert.LessOrEqual(sim.ActiveCount, cap);
+            Assert.AreEqual(cap, sim.Instances.Length);
+        }
+
+        [Test]
+        public void Debris_Step_AdvancesPosition_AndExpiresInstances()
+        {
+            using var sim = new DebrisSimulator(8);
+            var profile = MakeDebrisProfile("Default", sampleFraction: 1f);
+            profile.lifetimeSeconds = 0.05f;
+            profile.gravityScale = 0f;
+            profile.drag = 0f;
+            profile.initialSpeedMin = 5f;
+            profile.initialSpeedMax = 5f;
+            profile.spreadAngleDeg = 0f;
+            sim.RegisterProfile(profile);
+
+            var result = new ExplosionResult
+            {
+                voxelsRemoved = 1,
+                samples = new System.Collections.Generic.List<DestructionSample>
+                {
+                    new DestructionSample { position = Vector3.zero, material = 1, removedDensity = 1f },
+                },
+            };
+            sim.SpawnFromExplosion(result, Vector3.up, "Default", rngSeed: 42);
+            Assert.AreEqual(1, sim.ActiveCount);
+
+            sim.Step(world: null, gravity: Vector3.zero, dt: 0.01f);
+            var inst = sim.Instances[0];
+            Assert.AreEqual(1, (int)inst.alive);
+            Assert.Greater(inst.position.y, 0f, "Debe haberse desplazado en +Y.");
+
+            sim.Step(world: null, gravity: Vector3.zero, dt: 0.2f);
+            Assert.AreEqual(0, sim.ActiveCount);
+        }
+
+        // =================================================================
+        //  Fase 5 — Targets y TargetSpawner
+        // =================================================================
+
+        [Test]
+        public void TargetSpawner_Sphere_PlacesSolidAtCenter()
+        {
+            var w = new VoxelWorld(16);
+            var t = ScriptableObject.CreateInstance<TargetDef>();
+            t.shape = TargetShape.Sphere;
+            t.size = new Vector3(3f, 0f, 0f);
+            t.material = (byte)MaterialId.Rock;
+            t.densidad = 1f;
+            t.dureza = 0.5f;
+            int placed = TargetSpawner.Spawn(w, t, Vector3.zero);
+            Assert.Greater(placed, 0);
+            Assert.IsTrue(w.GetVoxel(0, 0, 0).solido);
+        }
+
+        [Test]
+        public void TargetSpawner_Box_HasExpectedCount()
+        {
+            var w = new VoxelWorld(16);
+            var t = ScriptableObject.CreateInstance<TargetDef>();
+            t.shape = TargetShape.Box;
+            t.size = new Vector3(4f, 4f, 4f);
+            t.material = (byte)MaterialId.Iron;
+            int placed = TargetSpawner.Spawn(w, t, new Vector3(20, 0, 0));
+            Assert.AreEqual(4 * 4 * 4, placed);
+        }
+
+        [Test]
+        public void TargetSpawner_Composite_AggregatesChildren()
+        {
+            var w = new VoxelWorld(16);
+            var child1 = ScriptableObject.CreateInstance<TargetDef>();
+            child1.shape = TargetShape.Box;
+            child1.size = new Vector3(2, 2, 2);
+            child1.material = (byte)MaterialId.Rock;
+            var child2 = ScriptableObject.CreateInstance<TargetDef>();
+            child2.shape = TargetShape.Box;
+            child2.size = new Vector3(3, 3, 3);
+            child2.material = (byte)MaterialId.Iron;
+            child2.positionOffset = new Vector3(8, 0, 0);
+
+            var composite = ScriptableObject.CreateInstance<TargetDef>();
+            composite.shape = TargetShape.Composite;
+            composite.children = new[] { child1, child2 };
+
+            int placed = TargetSpawner.Spawn(w, composite, Vector3.zero);
+            Assert.AreEqual(2 * 2 * 2 + 3 * 3 * 3, placed);
+        }
+
+        [Test]
+        public void TargetSpawner_NullDef_NoOp()
+        {
+            var w = new VoxelWorld(16);
+            Assert.AreEqual(0, TargetSpawner.Spawn(w, null, Vector3.zero));
+            Assert.AreEqual(0, TargetSpawner.Spawn(null, null, Vector3.zero));
         }
     }
 }

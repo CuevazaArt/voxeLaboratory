@@ -22,11 +22,14 @@ struct GpuVertex
 uint  _ChunkSize;
 float4 _ChunkOrigin;     // w no usado
 uint  _PaletteCount;
+uint  _MaxVertices;
+uint  _MaxIndices;
 
 StructuredBuffer<uint>           _Voxels;
 StructuredBuffer<uint>           _Palette;
 AppendStructuredBuffer<GpuVertex> _OutVertices;
 AppendStructuredBuffer<uint>      _OutIndices;
+RWStructuredBuffer<uint>          _GuardCounters; // [0]=vertices reservados, [1]=indices reservados
 
 uint Index(uint x, uint y, uint z)
 {
@@ -42,10 +45,25 @@ bool InBounds(int x, int y, int z)
 bool IsSolid(uint packed) { return ((packed >> 24) & 0x1u) != 0u; }
 uint MatId(uint packed)   { return packed & 0xFFu; }
 
-uint GetColor(uint mat)
+bool TryGetColor(uint mat, out uint color)
 {
-    if (mat >= _PaletteCount) return 0xFFFF00FFu; // magenta debug
-    return _Palette[mat];
+#ifdef VOXELLAB_DEBUG_PALETTE
+    if (mat >= _PaletteCount)
+    {
+        color = 0xFFFF00FFu;
+        return true;
+    }
+    color = _Palette[mat];
+    return true;
+#else
+    if (mat >= _PaletteCount)
+    {
+        color = 0u;
+        return false;
+    }
+    color = _Palette[mat];
+    return true;
+#endif
 }
 
 static const int3 FaceDir[6] = {
@@ -80,6 +98,25 @@ static const float3 FaceVerts[6][4] = {
 //
 // Aquí los emitimos para coherencia con el path CPU.
 
+bool TryReserveQuad(out uint baseVertex)
+{
+    uint oldVerts;
+    uint oldInds;
+    InterlockedAdd(_GuardCounters[0], 4u, oldVerts);
+    InterlockedAdd(_GuardCounters[1], 6u, oldInds);
+
+    bool vertsOk = (oldVerts + 4u) <= _MaxVertices;
+    bool indsOk = (oldInds + 6u) <= _MaxIndices;
+    if (!vertsOk || !indsOk)
+    {
+        baseVertex = 0u;
+        return false;
+    }
+
+    baseVertex = oldVerts;
+    return true;
+}
+
 void EmitQuad(uint baseId, float3 cellOrigin, int face, uint color)
 {
     GpuVertex v0, v1, v2, v3;
@@ -107,12 +144,10 @@ void CSMeshChunk(uint3 id : SV_DispatchThreadID)
     uint packed = _Voxels[Index(id.x, id.y, id.z)];
     if (!IsSolid(packed)) return;
 
-    uint color = GetColor(MatId(packed));
-    float3 cellOrigin = _ChunkOrigin.xyz + float3(id);
+    uint color;
+    if (!TryGetColor(MatId(packed), color)) return;
 
-    // baseId aproximado: cada voxel reserva hasta 24 vértices; usamos un id local
-    // único para el quad relativo a este voxel. El consumer reconstruye índices.
-    uint voxelLinear = Index(id.x, id.y, id.z) * 24u;
+    float3 cellOrigin = _ChunkOrigin.xyz + float3(id);
 
     [unroll]
     for (int f = 0; f < 6; f++)
@@ -138,7 +173,9 @@ void CSMeshChunk(uint3 id : SV_DispatchThreadID)
 
         if (emit)
         {
-            EmitQuad(voxelLinear + (uint)f * 4u, cellOrigin, f, color);
+            uint baseVertex;
+            if (TryReserveQuad(baseVertex))
+                EmitQuad(baseVertex, cellOrigin, f, color);
         }
     }
 }

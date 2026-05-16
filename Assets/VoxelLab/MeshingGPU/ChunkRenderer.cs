@@ -40,15 +40,25 @@ namespace VoxelLab.Meshing
             _mr.sharedMaterial = mat;
         }
 
-        /// <summary>Reconstruye la malla. Intenta GPU, cae a CPU.</summary>
-        public void Rebuild(VoxelWorld world, GPUChunkMesher gpuMesher, int lod = 0)
+        /// <summary>
+        /// Reconstruye la malla. Si el readback GPU esta pendiente, devuelve false
+        /// para que el llamador vuelva a intentar en un frame posterior.
+        /// </summary>
+        public bool Rebuild(VoxelWorld world, GPUChunkMesher gpuMesher, int lod = 0)
         {
-            if (Chunk == null) return;
+            if (Chunk == null) return true;
             LodLevel = lod;
 
             ChunkMeshData data = default;
-            bool ok = gpuMesher != null && gpuMesher.IsAvailable && lod == 0
-                && gpuMesher.TryBuild(Chunk, out data);
+            bool ok = false;
+            if (gpuMesher != null && gpuMesher.IsAvailable && lod == 0)
+            {
+                var status = gpuMesher.TryBuildNonBlocking(Chunk, out data);
+                if (status == GPUChunkMesher.BuildStatus.Pending)
+                    return false;
+                ok = status == GPUChunkMesher.BuildStatus.Ready;
+            }
+
             if (!ok)
             {
                 if (lod <= 0)
@@ -60,6 +70,7 @@ namespace VoxelLab.Meshing
             ChunkMeshBuilder.Apply(_mesh, data);
             _mr.enabled = !data.empty;
             Chunk.dirty = false;
+            return true;
         }
 
         /// <summary>LOD CPU primitivo: muestrea un voxel cada 2^lod y lo emite escalado.</summary>

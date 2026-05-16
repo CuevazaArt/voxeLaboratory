@@ -33,6 +33,17 @@ namespace VoxelLab.Core
         public Voxel voxel;
     }
 
+    /// <summary>Muestra de un voxel destruido (para spawnear debris/efectos).</summary>
+    public struct DestructionSample
+    {
+        /// <summary>Centro del voxel en espacio mundo.</summary>
+        public Vector3 position;
+        /// <summary>Material previo a la destrucción.</summary>
+        public byte material;
+        /// <summary>Densidad eliminada en esta operación (0..1].</summary>
+        public float removedDensity;
+    }
+
     /// <summary>Resultado de un Explosion: lista de voxels afectados (para físicas/efectos).</summary>
     public struct ExplosionResult
     {
@@ -40,6 +51,10 @@ namespace VoxelLab.Core
         public Vector3 center;
         public float radius;
         public float force;
+        /// <summary>Conteo de voxels destruidos por id de material (longitud = MaterialTable.Count).</summary>
+        public int[] removedByMaterial;
+        /// <summary>Muestras sub-sampleadas para alimentar sistemas de partículas (puede ser null).</summary>
+        public System.Collections.Generic.List<DestructionSample> samples;
     }
 
     /// <summary>Mundo voxel. Coordenadas en unidades de voxel (1 voxel = 1 unidad mundo).</summary>
@@ -146,19 +161,32 @@ namespace VoxelLab.Core
 
         /// <summary>
         /// Explosión: carve esférico + reporta resultado para empujar entidades.
-        /// La fuerza se interpreta por la capa de físicas.
+        /// La fuerza se interpreta por la capa de físicas. Retorna muestras
+        /// sub-sampleadas con paso <paramref name="sampleStride"/> (>=1).
         /// </summary>
-        public ExplosionResult Explosion(Vector3 center, float radius, float force)
+        public ExplosionResult Explosion(Vector3 center, float radius, float force, int sampleStride = 2)
         {
-            int removed = ApplySphere(center, radius, (v, t, dist) =>
+            sampleStride = Mathf.Max(1, sampleStride);
+            int matCount = MaterialTable.Count;
+            var removedByMat = new int[matCount];
+            var samples = new System.Collections.Generic.List<DestructionSample>(64);
+
+            int removed = ApplySphereSampled(center, radius, sampleStride,
+                (Voxel v, float t, float dist, int x, int y, int z) =>
             {
                 if (!v.solido) return v;
+                byte prevMat = v.material;
+                float prevDens = v.densidad;
                 float remove = (1f - dist * dist) * (1f - v.dureza * 0.5f) * Mathf.Clamp01(force * 0.5f);
                 v.densidad = Mathf.Max(0f, v.densidad - remove);
-                if (v.densidad < 0.5f) { v.material = 0; }
+                bool wasRemoved = v.densidad < 0.5f;
+                if (wasRemoved) v.material = 0;
                 v.Recompute();
+                if (wasRemoved && prevMat < removedByMat.Length) removedByMat[prevMat]++;
                 return v;
-            }, out int affected);
+            },
+            (DestructionSample s) => samples.Add(s),
+            out int affected);
 
             return new ExplosionResult
             {
@@ -166,6 +194,8 @@ namespace VoxelLab.Core
                 center = center,
                 radius = radius,
                 force = force,
+                removedByMaterial = removedByMat,
+                samples = samples,
             };
         }
 
@@ -262,6 +292,155 @@ namespace VoxelLab.Core
                 OnChunkDirty?.Invoke(c);
             }
             return affected;
+        }
+
+        /// <summary>
+        /// Variante de <see cref="ApplySphere"/> que reporta una muestra por cada
+        /// voxel destruido (densidad cae a 0). El sub-sampleado se controla por
+        /// <paramref name="sampleStride"/>: 1 = todos, 2 = uno de cada 2^3, etc.
+        /// </summary>
+        private int ApplySphereSampled(
+            Vector3 center, float radius, int sampleStride,
+            System.Func<Voxel, float, float, int, int, int, Voxel> mutator,
+            System.Action<DestructionSample> onSample,
+            out int affected)
+        {
+            affected = 0;
+            if (radius <= 0f) return 0;
+
+            int r = Mathf.CeilToInt(radius);
+            int x0 = Mathf.FloorToInt(center.x) - r, x1 = Mathf.FloorToInt(center.x) + r;
+            int y0 = Mathf.FloorToInt(center.y) - r, y1 = Mathf.FloorToInt(center.y) + r;
+            int z0 = Mathf.FloorToInt(center.z) - r, z1 = Mathf.FloorToInt(center.z) + r;
+            float r2 = radius * radius;
+            var dirtyChunks = new HashSet<VoxelChunk>();
+            int stride = Mathf.Max(1, sampleStride);
+
+            for (int z = z0; z <= z1; z++)
+            for (int y = y0; y <= y1; y++)
+            for (int x = x0; x <= x1; x++)
+            {
+                Vector3 p = new Vector3(x + 0.5f, y + 0.5f, z + 0.5f);
+                float d2 = (p - center).sqrMagnitude;
+                if (d2 > r2) continue;
+                float distNorm = Mathf.Sqrt(d2) / radius;
+
+                var cc = ChunkCoord(x, y, z);
+                var chunk = GetChunk(cc, create: true);
+                var lc = LocalCoord(x, y, z);
+                int idx = chunk.Index(lc.x, lc.y, lc.z);
+                var v = chunk.voxels[idx];
+                byte prevMat = v.material;
+                float prevDens = v.densidad;
+                var nv = mutator(v, 1f - distNorm, distNorm, x, y, z);
+                if (!v.Equals(nv))
+                {
+                    chunk.voxels[idx] = nv;
+                    chunk.dirty = true;
+                    if (nv.solido) chunk.empty = false;
+                    dirtyChunks.Add(chunk);
+                    affected++;
+
+                    bool destroyed = prevDens >= 0.5f && nv.densidad < 0.5f;
+                    if (destroyed && onSample != null &&
+                        (((x % stride) + stride) % stride == 0) &&
+                        (((y % stride) + stride) % stride == 0) &&
+                        (((z % stride) + stride) % stride == 0))
+                    {
+                        onSample(new DestructionSample
+                        {
+                            position = p,
+                            material = prevMat,
+                            removedDensity = prevDens - nv.densidad,
+                        });
+                    }
+                }
+            }
+
+            foreach (var c in dirtyChunks)
+            {
+                if (!c.empty) c.RecomputeEmpty();
+                octree.MarkDirty(ChunkCoord(c.origin.x, c.origin.y, c.origin.z));
+                OnChunkDirty?.Invoke(c);
+            }
+            return affected;
+        }
+
+        // -----------------------------------------------------------------
+        //  Primitivos de relleno (targets)
+        // -----------------------------------------------------------------
+
+        /// <summary>Límite duro de voxels por operación de relleno (alineado con cap GPU).</summary>
+        public const int MAX_FILL_VOXELS = 8_000_000;
+
+        /// <summary>
+        /// Llena un AABB con un material homogéneo. <paramref name="size"/> se clampa a [1..256] por eje
+        /// y el volumen total se valida contra <see cref="MAX_FILL_VOXELS"/>.
+        /// </summary>
+        public int FillBox(Vector3 center, Vector3Int size, byte material, float densidad = 1f, float dureza = 0.5f)
+        {
+            int sx = Mathf.Clamp(size.x, 1, 256);
+            int sy = Mathf.Clamp(size.y, 1, 256);
+            int sz = Mathf.Clamp(size.z, 1, 256);
+            long volume = (long)sx * sy * sz;
+            if (volume > MAX_FILL_VOXELS) return 0;
+
+            int hx = sx / 2, hy = sy / 2, hz = sz / 2;
+            int cx = Mathf.FloorToInt(center.x), cy = Mathf.FloorToInt(center.y), cz = Mathf.FloorToInt(center.z);
+            int x0 = cx - hx, y0 = cy - hy, z0 = cz - hz;
+            int x1 = x0 + sx, y1 = y0 + sy, z1 = z0 + sz;
+
+            float d = Mathf.Clamp01(densidad);
+            float h = Mathf.Clamp01(dureza);
+            int placed = 0;
+            for (int z = z0; z < z1; z++)
+            for (int y = y0; y < y1; y++)
+            for (int x = x0; x < x1; x++)
+            {
+                SetVoxel(x, y, z, new Voxel(material, d, h));
+                placed++;
+            }
+            return placed;
+        }
+
+        /// <summary>
+        /// Llena un cilindro alineado a uno de los tres ejes principales.
+        /// <paramref name="axis"/>: 0=X, 1=Y, 2=Z.
+        /// </summary>
+        public int FillCylinder(Vector3 center, float radius, float height, int axis,
+            byte material, float densidad = 1f, float dureza = 0.5f)
+        {
+            radius = Mathf.Clamp(radius, 0.5f, 128f);
+            height = Mathf.Clamp(height, 1f, 256f);
+            axis = Mathf.Clamp(axis, 0, 2);
+
+            int r = Mathf.CeilToInt(radius);
+            int hh = Mathf.CeilToInt(height * 0.5f);
+            long bbox = (long)(2 * r + 1) * (2 * r + 1) * (2 * hh + 1);
+            if (bbox > MAX_FILL_VOXELS) return 0;
+
+            int cx = Mathf.FloorToInt(center.x), cy = Mathf.FloorToInt(center.y), cz = Mathf.FloorToInt(center.z);
+            float r2 = radius * radius;
+            float d = Mathf.Clamp01(densidad);
+            float hd = Mathf.Clamp01(dureza);
+            int placed = 0;
+
+            // Recorremos: dos ejes ortogonales (a,b) forman el círculo; tercer eje (h) la altura.
+            for (int a = -r; a <= r; a++)
+            for (int b = -r; b <= r; b++)
+            {
+                if (a * a + b * b > r2) continue;
+                for (int h = -hh; h <= hh; h++)
+                {
+                    int x, y, z;
+                    if (axis == 0)      { x = cx + h; y = cy + a; z = cz + b; }
+                    else if (axis == 1) { x = cx + a; y = cy + h; z = cz + b; }
+                    else                { x = cx + a; y = cy + b; z = cz + h; }
+                    SetVoxel(x, y, z, new Voxel(material, d, hd));
+                    placed++;
+                }
+            }
+            return placed;
         }
     }
 }

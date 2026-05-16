@@ -216,7 +216,9 @@ namespace VoxelLab.Boot
                         lod = Mathf.Clamp(Mathf.FloorToInt(dist / (chunkSize * 4f * lodScale)), 0, 2);
                     }
                 }
-                r.Rebuild(World, Mesher, lod);
+                bool completed = r.Rebuild(World, Mesher, lod);
+                if (!completed)
+                    Enqueue(c);
             }
 
             // Refresh esporádico del LOD del SVO.

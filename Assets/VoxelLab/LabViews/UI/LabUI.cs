@@ -170,7 +170,42 @@ namespace VoxelLab.UI
                 undo.Redo(lab.World);
             GUI.enabled = true;
             GUILayout.EndHorizontal();
+            DrawSaveLoad();
             GUILayout.Space(4);
+        }
+
+        private void DrawSaveLoad()
+        {
+            if (lab == null || lab.World == null) return;
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Guardar"))
+            {
+                try
+                {
+                    string path = System.IO.Path.Combine(Application.persistentDataPath, "voxellab_world.vlab");
+                    WorldSerializer.SaveToFile(lab.World, path);
+                    Debug.Log($"[LabUI] Mundo guardado en {path}");
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogError($"[LabUI] Save fallo: {e.Message}");
+                }
+            }
+            if (GUILayout.Button("Cargar"))
+            {
+                try
+                {
+                    string path = System.IO.Path.Combine(Application.persistentDataPath, "voxellab_world.vlab");
+                    WorldSerializer.LoadFromFile(lab.World, path);
+                    if (toolManager != null && toolManager.Undo != null) toolManager.Undo.Clear();
+                    Debug.Log($"[LabUI] Mundo cargado desde {path}");
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogError($"[LabUI] Load fallo: {e.Message}");
+                }
+            }
+            GUILayout.EndHorizontal();
         }
 
         private void DrawTargets()

@@ -116,6 +116,32 @@ namespace VoxelLab.Core
         public IEnumerable<VoxelChunk> AllChunks() => chunks.Values;
 
         // -----------------------------------------------------------------
+        //  Hooks de persistencia (serializer)
+        // -----------------------------------------------------------------
+
+        /// <summary>Vacía el diccionario de chunks (usado por carga de mundo).</summary>
+        public void ClearChunks()
+        {
+            chunks.Clear();
+        }
+
+        /// <summary>
+        /// Inserta o reemplaza un chunk en una coordenada concreta. Lanza
+        /// si los tamaños no coinciden. Marca dirty en SVO y emite OnChunkDirty.
+        /// </summary>
+        public void RegisterChunk(Vector3Int chunkCoord, VoxelChunk chunk)
+        {
+            if (chunk == null) throw new ArgumentNullException(nameof(chunk));
+            if (chunk.size != chunkSize)
+                throw new ArgumentException($"chunk.size {chunk.size} != world.chunkSize {chunkSize}");
+            chunks[chunkCoord] = chunk;
+            chunk.RecomputeEmpty();
+            chunk.dirty = true;
+            octree?.MarkDirty(chunkCoord);
+            OnChunkDirty?.Invoke(chunk);
+        }
+
+        // -----------------------------------------------------------------
         //  API solicitada en la spec
         // -----------------------------------------------------------------
 

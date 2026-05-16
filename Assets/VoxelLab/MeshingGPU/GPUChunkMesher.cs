@@ -50,6 +50,7 @@ namespace VoxelLab.Meshing
         private sealed class PendingBuild
         {
             public VoxelChunk chunk;
+            public int lodStride;
             public ComputeBuffer voxBuf;
             public ComputeBuffer vertBuf;
             public ComputeBuffer indBuf;
@@ -101,13 +102,34 @@ namespace VoxelLab.Meshing
         /// Si falla, devuelve Failed para usar fallback CPU.
         /// </summary>
         public BuildStatus TryBuildNonBlocking(VoxelChunk chunk, out ChunkMeshData data)
+            => TryBuildNonBlocking(chunk, 1, out data);
+
+        /// <summary>
+        /// Variante con stride LOD. <paramref name="lodStride"/> debe ser potencia
+        /// de dos &gt;= 1 y &lt;= chunk.size. Hebras no alineadas al stride se
+        /// descartan en el kernel; las caras emitidas escalan por stride.
+        /// </summary>
+        public BuildStatus TryBuildNonBlocking(VoxelChunk chunk, int lodStride, out ChunkMeshData data)
         {
             data = default;
             if (!IsAvailable || chunk == null) return BuildStatus.Failed;
 
+            // Sanitizar stride.
+            if (lodStride < 1) lodStride = 1;
+            if ((lodStride & (lodStride - 1)) != 0)
+            {
+                Debug.LogWarning($"[GPUChunkMesher] lodStride debe ser potencia de 2 (recibido {lodStride}). Fallback CPU.");
+                return BuildStatus.Failed;
+            }
+            if (lodStride > chunk.size)
+            {
+                Debug.LogWarning($"[GPUChunkMesher] lodStride {lodStride} > chunkSize {chunk.size}. Fallback CPU.");
+                return BuildStatus.Failed;
+            }
+
             if (!_pending.TryGetValue(chunk, out var pending))
             {
-                if (!TryCreatePendingBuild(chunk, out pending))
+                if (!TryCreatePendingBuild(chunk, lodStride, out pending))
                     return BuildStatus.Failed;
                 _pending.Add(chunk, pending);
                 return BuildStatus.Pending;
@@ -202,7 +224,7 @@ namespace VoxelLab.Meshing
             return BuildStatus.Ready;
         }
 
-        private bool TryCreatePendingBuild(VoxelChunk chunk, out PendingBuild pending)
+        private bool TryCreatePendingBuild(VoxelChunk chunk, int lodStride, out PendingBuild pending)
         {
             pending = null;
 
@@ -284,6 +306,7 @@ namespace VoxelLab.Meshing
                 _shader.SetInt("_PaletteCount", matCount);
                 _shader.SetInt("_MaxVertices", maxVerts);
                 _shader.SetInt("_MaxIndices", maxInds);
+                _shader.SetInt("_LodStride", lodStride);
                 _shader.SetBuffer(_kernel, "_Voxels", voxBuf);
                 _shader.SetBuffer(_kernel, "_OutVertices", vertBuf);
                 _shader.SetBuffer(_kernel, "_OutIndices", indBuf);
@@ -300,6 +323,7 @@ namespace VoxelLab.Meshing
                 pending = new PendingBuild
                 {
                     chunk = chunk,
+                    lodStride = lodStride,
                     voxBuf = voxBuf,
                     vertBuf = vertBuf,
                     indBuf = indBuf,
@@ -424,6 +448,7 @@ namespace VoxelLab.Meshing
                 _shader.SetInt("_PaletteCount", matCount);
                 _shader.SetInt("_MaxVertices", maxVerts);
                 _shader.SetInt("_MaxIndices", maxInds);
+                _shader.SetInt("_LodStride", 1);
                 _shader.SetBuffer(_kernel, "_Voxels", voxBuf);
                 _shader.SetBuffer(_kernel, "_OutVertices", vertBuf);
                 _shader.SetBuffer(_kernel, "_OutIndices", indBuf);

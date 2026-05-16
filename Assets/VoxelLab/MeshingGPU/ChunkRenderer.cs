@@ -51,12 +51,17 @@ namespace VoxelLab.Meshing
 
             ChunkMeshData data = default;
             bool ok = false;
-            if (gpuMesher != null && gpuMesher.IsAvailable && lod == 0)
+            if (gpuMesher != null && gpuMesher.IsAvailable)
             {
-                var status = gpuMesher.TryBuildNonBlocking(Chunk, out data);
-                if (status == GPUChunkMesher.BuildStatus.Pending)
-                    return false;
-                ok = status == GPUChunkMesher.BuildStatus.Ready;
+                int stride = 1 << Mathf.Clamp(lod, 0, 16);
+                // El kernel exige stride <= chunkSize y potencia de 2.
+                if (stride <= Chunk.size)
+                {
+                    var status = gpuMesher.TryBuildNonBlocking(Chunk, stride, out data);
+                    if (status == GPUChunkMesher.BuildStatus.Pending)
+                        return false;
+                    ok = status == GPUChunkMesher.BuildStatus.Ready;
+                }
             }
 
             if (!ok)

@@ -24,6 +24,7 @@ float4 _ChunkOrigin;     // w no usado
 uint  _PaletteCount;
 uint  _MaxVertices;
 uint  _MaxIndices;
+uint  _LodStride;        // 1 = LOD0; potencia de 2 (2 = LOD1, 4 = LOD2 ...)
 
 StructuredBuffer<uint>           _Voxels;
 StructuredBuffer<uint>           _Palette;
@@ -117,13 +118,13 @@ bool TryReserveQuad(out uint baseVertex)
     return true;
 }
 
-void EmitQuad(uint baseId, float3 cellOrigin, int face, uint color)
+void EmitQuad(uint baseId, float3 cellOrigin, int face, uint color, float scale)
 {
     GpuVertex v0, v1, v2, v3;
-    v0.position = cellOrigin + FaceVerts[face][0]; v0.normal = FaceNormal[face]; v0.color = color;
-    v1.position = cellOrigin + FaceVerts[face][1]; v1.normal = FaceNormal[face]; v1.color = color;
-    v2.position = cellOrigin + FaceVerts[face][2]; v2.normal = FaceNormal[face]; v2.color = color;
-    v3.position = cellOrigin + FaceVerts[face][3]; v3.normal = FaceNormal[face]; v3.color = color;
+    v0.position = cellOrigin + FaceVerts[face][0] * scale; v0.normal = FaceNormal[face]; v0.color = color;
+    v1.position = cellOrigin + FaceVerts[face][1] * scale; v1.normal = FaceNormal[face]; v1.color = color;
+    v2.position = cellOrigin + FaceVerts[face][2] * scale; v2.normal = FaceNormal[face]; v2.color = color;
+    v3.position = cellOrigin + FaceVerts[face][3] * scale; v3.normal = FaceNormal[face]; v3.color = color;
     _OutVertices.Append(v0);
     _OutVertices.Append(v1);
     _OutVertices.Append(v2);
@@ -141,6 +142,10 @@ void CSMeshChunk(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= _ChunkSize || id.y >= _ChunkSize || id.z >= _ChunkSize) return;
 
+    uint stride = _LodStride < 1u ? 1u : _LodStride;
+    // Solo hebras alineadas al stride emiten geometria.
+    if ((id.x % stride) != 0u || (id.y % stride) != 0u || (id.z % stride) != 0u) return;
+
     uint packed = _Voxels[Index(id.x, id.y, id.z)];
     if (!IsSolid(packed)) return;
 
@@ -148,21 +153,23 @@ void CSMeshChunk(uint3 id : SV_DispatchThreadID)
     if (!TryGetColor(MatId(packed), color)) return;
 
     float3 cellOrigin = _ChunkOrigin.xyz + float3(id);
+    float scale = (float)stride;
+    int step = (int)stride;
 
     [unroll]
     for (int f = 0; f < 6; f++)
     {
         int3 d = FaceDir[f];
-        int nx = (int)id.x + d.x;
-        int ny = (int)id.y + d.y;
-        int nz = (int)id.z + d.z;
+        int nx = (int)id.x + d.x * step;
+        int ny = (int)id.y + d.y * step;
+        int nz = (int)id.z + d.z * step;
 
         bool emit = false;
         if (!InBounds(nx, ny, nz))
         {
-            // Frontera del chunk: emitimos por defecto (la CPU se encargará
+            // Frontera del chunk: emitimos por defecto (la CPU se encargara
             // de quitar dobles caras compartidas si hay vecino, pero como
-            // worst case se ven y el costo es pequeño).
+            // worst case se ven y el costo es pequeno).
             emit = true;
         }
         else
@@ -175,7 +182,7 @@ void CSMeshChunk(uint3 id : SV_DispatchThreadID)
         {
             uint baseVertex;
             if (TryReserveQuad(baseVertex))
-                EmitQuad(baseVertex, cellOrigin, f, color);
+                EmitQuad(baseVertex, cellOrigin, f, color, scale);
         }
     }
 }

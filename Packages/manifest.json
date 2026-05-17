@@ -1,9 +1,12 @@
 {
   "dependencies": {
-    "com.unity.inputsystem": "1.7.0",
+    "com.unity.ai.assistant": "2.8.0-pre.1",
+    "com.unity.ai.inference": "2.6.1",
     "com.unity.burst": "1.8.18",
+    "com.unity.inputsystem": "1.7.0",
     "com.unity.mathematics": "1.3.2",
     "com.unity.multiplayer.center": "1.0.1",
+    "com.unity.test-framework": "1.3.9",
     "com.unity.modules.accessibility": "1.0.0",
     "com.unity.modules.adaptiveperformance": "1.0.0",
     "com.unity.modules.ai": "1.0.0",

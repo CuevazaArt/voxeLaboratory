@@ -10,7 +10,8 @@
         "VoxelLab.PlanetGenerator",
         "VoxelLab.Tools",
         "UnityEngine.TestRunner",
-        "UnityEditor.TestRunner"
+        "UnityEditor.TestRunner",
+        "Unity.Mathematics"
     ],
     "includePlatforms": [
         "Editor"

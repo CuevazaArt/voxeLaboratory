@@ -91,7 +91,7 @@ namespace VoxelLab.Scene
         private System.Collections.IEnumerator LinkBodyNextFrame(VoxelRigidbody rb)
         {
             yield return null;
-            var lab = Object.FindFirstObjectByType<VoxelLab.Boot.VoxeLab>();
+            var lab = Object.FindAnyObjectByType<VoxelLab.Boot.VoxeLab>();
             if (lab != null)
             {
                 if (rb != null) rb.World = lab.World;

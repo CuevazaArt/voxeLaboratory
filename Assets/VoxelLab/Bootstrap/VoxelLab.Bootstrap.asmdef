@@ -9,7 +9,8 @@
         "VoxelLab.PhysicsVolumetric",
         "VoxelLab.PlanetGenerator",
         "VoxelLab.Tools",
-        "VoxelLab.LabViews"
+        "VoxelLab.LabViews",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

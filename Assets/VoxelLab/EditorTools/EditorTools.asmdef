@@ -9,7 +9,8 @@
         "VoxelLab.PhysicsVolumetric",
         "VoxelLab.PlanetGenerator",
         "VoxelLab.Tools",
-        "VoxelLab.LabViews"
+        "VoxelLab.LabViews",
+        "VoxelLab.Bootstrap"
     ],
     "includePlatforms": [
         "Editor"

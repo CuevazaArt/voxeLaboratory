@@ -32,7 +32,7 @@ namespace VoxelLab.Boot
         CubeSandbox = 1,
     }
 
-    public class VoxeLab : MonoBehaviour
+    public class VoxeLab : MonoBehaviour, IVoxeLab
     {
         [Header("Mundo")]
         public int chunkSize = 16;
@@ -48,7 +48,8 @@ namespace VoxelLab.Boot
         public Material materialOverlayMaterial;
         public ComputeShader meshingCompute;
         public int chunksPerFrame = 4;
-        public float lodScale = 1.0f;
+        [SerializeField] private float m_lodScale = 1.0f;
+        public float lodScale { get => m_lodScale; set => m_lodScale = value; }
 
         [Header("Refs UI/Cámaras (opcional, se autocrean si null)")]
         public CameraSwitcher cameraSwitcher;
@@ -70,9 +71,45 @@ namespace VoxelLab.Boot
         private void Start()
         {
             BuildWorld();
+            HookCameras();
             HookOverlays();
             HookTools();
             HookUI();
+        }
+
+        private void HookCameras()
+        {
+            if (cameraSwitcher != null) return;
+
+            // Auto-create orbital + fly cameras so the scene renders out of the box.
+            var camOrbitalGO = new GameObject("Camera_Orbital");
+            camOrbitalGO.transform.SetParent(transform, false);
+            camOrbitalGO.tag = "MainCamera";
+            camOrbitalGO.transform.position = new Vector3(0f, 40f, -60f);
+            var camOrbital = camOrbitalGO.AddComponent<Camera>();
+            camOrbitalGO.AddComponent<AudioListener>();
+            camOrbital.farClipPlane = 4000f;
+            var orbital = camOrbitalGO.AddComponent<OrbitalCamera>();
+            var pivotGO = new GameObject("OrbitalPivot");
+            pivotGO.transform.SetParent(transform, false);
+            orbital.target = pivotGO.transform;
+
+            var camFlyGO = new GameObject("Camera_Fly");
+            camFlyGO.transform.SetParent(transform, false);
+            camFlyGO.transform.position = new Vector3(0f, 30f, -50f);
+            var camFly = camFlyGO.AddComponent<Camera>();
+            camFly.farClipPlane = 4000f;
+            camFly.enabled = false;
+            var fly = camFlyGO.AddComponent<FlyCamera>();
+
+            var switchGO = new GameObject("CameraSwitcher");
+            switchGO.transform.SetParent(transform, false);
+            cameraSwitcher = switchGO.AddComponent<CameraSwitcher>();
+            cameraSwitcher.slots = new[]
+            {
+                new CameraSwitcher.Slot { label = "Orbital", camera = camOrbital, controller = orbital, hotkey = UnityEngine.InputSystem.Key.F1 },
+                new CameraSwitcher.Slot { label = "Fly",     camera = camFly,     controller = fly,     hotkey = UnityEngine.InputSystem.Key.F2 },
+            };
         }
 
         private void BuildWorld()
@@ -129,12 +166,12 @@ namespace VoxelLab.Boot
                 go.transform.SetParent(transform, false);
                 ui = go.AddComponent<LabUI>();
             }
-            ui.lab = this;
+            ui.labObject = this;
             ui.toolManager = toolManager;
             ui.overlays = overlay;
             ui.cameras = cameraSwitcher;
             if (ui.launcher == null)
-                ui.launcher = Object.FindFirstObjectByType<ProjectileLauncher>();
+                ui.launcher = Object.FindAnyObjectByType<ProjectileLauncher>();
         }
 
         private int GenerateWorldContent()
@@ -222,7 +259,7 @@ namespace VoxelLab.Boot
             }
 
             // Refresh esporádico del LOD del SVO.
-            if (Time.frameCount % 60 == 0) World.octree.Refresh(World);
+            if (Time.frameCount % 60 == 0) World.octree.Refresh(cc => World.GetChunk(cc, false));
         }
 
         private void OnDestroy()

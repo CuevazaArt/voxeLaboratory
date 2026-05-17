@@ -61,7 +61,7 @@ namespace VoxelLab.Planet
             {
                 world.EndEdit();
             }
-            world.octree.Refresh(world);
+            world.octree.Refresh(cc => world.GetChunk(cc, false));
             return placed;
         }
 
@@ -95,7 +95,7 @@ namespace VoxelLab.Planet
                 yield return null;
             }
 
-            world.octree.Refresh(world);
+            world.octree.Refresh(cc => world.GetChunk(cc, false));
             onProgress?.Invoke(1f);
         }
 

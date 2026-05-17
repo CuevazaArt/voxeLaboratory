@@ -10,7 +10,8 @@
         "VoxelLab.PlanetGenerator",
         "VoxelLab.Tools",
         "Unity.Collections",
-        "Unity.Mathematics"
+        "Unity.Mathematics",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

@@ -358,8 +358,8 @@ namespace VoxelLab.Tests
             var rock = MakeMat(1, "Rock");
             var iron = MakeMat(3, "Iron");
             MaterialTable.Apply(new[] { rock, iron });
-            Assert.AreEqual(0f, MaterialTable.Get(0).color.a, 1e-6f, "Slot 0 debe permanecer Air.");
-            Assert.AreEqual("Air", MaterialTable.Get(0).name);
+            Assert.AreEqual(0f, MaterialTable.Get((byte)0).color.a, 1e-6f, "Slot 0 debe permanecer Air.");
+            Assert.AreEqual("Air", MaterialTable.Get((byte)0).name);
         }
 
         [Test]
@@ -585,13 +585,13 @@ namespace VoxelLab.Tests
         public void TargetSpawner_Sphere_PlacesSolidAtCenter()
         {
             var w = new VoxelWorld(16);
-            var t = ScriptableObject.CreateInstance<TargetDef>();
-            t.shape = TargetShape.Sphere;
+            var t = ScriptableObject.CreateInstance<VoxelLab.Planet.TargetDef>();
+            t.shape = VoxelLab.Planet.TargetShape.Sphere;
             t.size = new Vector3(3f, 0f, 0f);
             t.material = (byte)MaterialId.Rock;
             t.densidad = 1f;
             t.dureza = 0.5f;
-            int placed = TargetSpawner.Spawn(w, t, Vector3.zero);
+            int placed = VoxelLab.Planet.TargetSpawner.Spawn(w, t, Vector3.zero);
             Assert.Greater(placed, 0);
             Assert.IsTrue(w.GetVoxel(0, 0, 0).solido);
         }
@@ -600,11 +600,11 @@ namespace VoxelLab.Tests
         public void TargetSpawner_Box_HasExpectedCount()
         {
             var w = new VoxelWorld(16);
-            var t = ScriptableObject.CreateInstance<TargetDef>();
-            t.shape = TargetShape.Box;
+            var t = ScriptableObject.CreateInstance<VoxelLab.Planet.TargetDef>();
+            t.shape = VoxelLab.Planet.TargetShape.Box;
             t.size = new Vector3(4f, 4f, 4f);
             t.material = (byte)MaterialId.Iron;
-            int placed = TargetSpawner.Spawn(w, t, new Vector3(20, 0, 0));
+            int placed = VoxelLab.Planet.TargetSpawner.Spawn(w, t, new Vector3(20, 0, 0));
             Assert.AreEqual(4 * 4 * 4, placed);
         }
 
@@ -612,21 +612,21 @@ namespace VoxelLab.Tests
         public void TargetSpawner_Composite_AggregatesChildren()
         {
             var w = new VoxelWorld(16);
-            var child1 = ScriptableObject.CreateInstance<TargetDef>();
-            child1.shape = TargetShape.Box;
+            var child1 = ScriptableObject.CreateInstance<VoxelLab.Planet.TargetDef>();
+            child1.shape = VoxelLab.Planet.TargetShape.Box;
             child1.size = new Vector3(2, 2, 2);
             child1.material = (byte)MaterialId.Rock;
-            var child2 = ScriptableObject.CreateInstance<TargetDef>();
-            child2.shape = TargetShape.Box;
+            var child2 = ScriptableObject.CreateInstance<VoxelLab.Planet.TargetDef>();
+            child2.shape = VoxelLab.Planet.TargetShape.Box;
             child2.size = new Vector3(3, 3, 3);
             child2.material = (byte)MaterialId.Iron;
             child2.positionOffset = new Vector3(8, 0, 0);
 
-            var composite = ScriptableObject.CreateInstance<TargetDef>();
-            composite.shape = TargetShape.Composite;
+            var composite = ScriptableObject.CreateInstance<VoxelLab.Planet.TargetDef>();
+            composite.shape = VoxelLab.Planet.TargetShape.Composite;
             composite.children = new[] { child1, child2 };
 
-            int placed = TargetSpawner.Spawn(w, composite, Vector3.zero);
+            int placed = VoxelLab.Planet.TargetSpawner.Spawn(w, composite, Vector3.zero);
             Assert.AreEqual(2 * 2 * 2 + 3 * 3 * 3, placed);
         }
 
@@ -634,8 +634,8 @@ namespace VoxelLab.Tests
         public void TargetSpawner_NullDef_NoOp()
         {
             var w = new VoxelWorld(16);
-            Assert.AreEqual(0, TargetSpawner.Spawn(w, null, Vector3.zero));
-            Assert.AreEqual(0, TargetSpawner.Spawn(null, null, Vector3.zero));
+            Assert.AreEqual(0, VoxelLab.Planet.TargetSpawner.Spawn(w, null, Vector3.zero));
+            Assert.AreEqual(0, VoxelLab.Planet.TargetSpawner.Spawn(null, null, Vector3.zero));
         }
     }
 }

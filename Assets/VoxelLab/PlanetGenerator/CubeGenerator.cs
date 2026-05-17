@@ -68,7 +68,7 @@ namespace VoxelLab.Planet
                 placed++;
             }
 
-            world.octree.Refresh(world);
+            world.octree.Refresh(cc => world.GetChunk(cc, false));
             return placed;
         }
     }

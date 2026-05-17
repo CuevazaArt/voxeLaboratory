@@ -41,7 +41,7 @@ namespace VoxelLab.Scene
         public VoxelMaterialRegistry materialRegistry;
         public ProjectileTypeDef[] projectileTypes;
         public DebrisProfileDef[] debrisProfiles;
-        public TargetDef[] targets;
+        public VoxelLab.Planet.TargetDef[] targets;
         [Min(64)] public int debrisCapacity = 4096;
 
         private DebrisSimulator _debris;
@@ -68,7 +68,9 @@ namespace VoxelLab.Scene
             var camOrbital = camOrbitalGO.AddComponent<Camera>();
             camOrbitalGO.AddComponent<AudioListener>();
             var orbital = camOrbitalGO.AddComponent<OrbitalCamera>();
-            orbital.target = new Vector3(cubeCenter.x, cubeCenter.y, cubeCenter.z);
+            var pivotGO = new GameObject("OrbitalPivot");
+            pivotGO.transform.position = new Vector3(cubeCenter.x, cubeCenter.y, cubeCenter.z);
+            orbital.target = pivotGO.transform;
             camOrbital.farClipPlane = 4000f;
 
             // Camara fly
@@ -83,8 +85,8 @@ namespace VoxelLab.Scene
             var switcher = switchGO.AddComponent<CameraSwitcher>();
             switcher.slots = new[]
             {
-                new CameraSwitcher.Slot { label = "Orbital", camera = camOrbital, controller = orbital, hotkey = KeyCode.F1 },
-                new CameraSwitcher.Slot { label = "Fly", camera = camFly, controller = fly, hotkey = KeyCode.F2 },
+                new CameraSwitcher.Slot { label = "Orbital", camera = camOrbital, controller = orbital, hotkey = UnityEngine.InputSystem.Key.F1 },
+                new CameraSwitcher.Slot { label = "Fly", camera = camFly, controller = fly, hotkey = UnityEngine.InputSystem.Key.F2 },
             };
 
             var labGO = new GameObject("VoxeLab");

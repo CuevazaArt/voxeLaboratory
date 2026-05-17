@@ -31,11 +31,12 @@ namespace VoxelLab.UI
         public ToolManager toolManager;
         public OverlayController overlays;
         public CameraSwitcher cameras;
-        public VoxelLab.Boot.VoxeLab lab;
+        public UnityEngine.Object labObject;
+        public IVoxeLab lab => labObject as IVoxeLab;
         public ProjectileLauncher launcher;
 
         [Header("Sandbox extendido")]
-        public TargetDef[] availableTargets;
+        public VoxelLab.Planet.TargetDef[] availableTargets;
         public Vector3 targetSpawnOrigin = Vector3.zero;
         public DebrisSimulator debrisSimulator;
 
@@ -225,7 +226,7 @@ namespace VoxelLab.UI
             {
                 if (lab != null && lab.World != null)
                 {
-                    int filled = TargetSpawner.Spawn(lab.World, availableTargets[_activeTargetIndex], targetSpawnOrigin);
+                    int filled = VoxelLab.Planet.TargetSpawner.Spawn(lab.World, availableTargets[_activeTargetIndex], targetSpawnOrigin);
                     Debug.Log($"TargetSpawner: {filled} voxels");
                 }
             }

@@ -40,7 +40,7 @@ namespace VoxelLab.Core
         [Header("Identidad")]
         public string displayName = "Target";
         [Tooltip("Material id registrado en MaterialTable.")]
-        public byte materialId = (byte)MaterialId.Stone;
+        public byte materialId = (byte)MaterialId.Rock;
 
         [Header("Forma")]
         public TargetShape shape = TargetShape.Box;

@@ -3,7 +3,8 @@
     "rootNamespace": "VoxelLab.Planet",
     "references": [
         "VoxelLab.VoxelCore",
-        "VoxelLab.ChunkSystem"
+        "VoxelLab.ChunkSystem",
+        "VoxelLab.SVO"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

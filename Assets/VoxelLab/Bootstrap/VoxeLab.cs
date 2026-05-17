@@ -134,7 +134,7 @@ namespace VoxelLab.Boot
             ui.overlays = overlay;
             ui.cameras = cameraSwitcher;
             if (ui.launcher == null)
-                ui.launcher = FindObjectOfType<ProjectileLauncher>();
+                ui.launcher = Object.FindFirstObjectByType<ProjectileLauncher>();
         }
 
         private int GenerateWorldContent()

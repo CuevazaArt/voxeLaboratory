@@ -6,6 +6,7 @@
 //  voxel: gravedad local, salto, alineación al gradiente.
 // =====================================================================
 using UnityEngine;
+using UnityEngine.InputSystem;
 using VoxelLab.Physics;
 
 namespace VoxelLab.Cameras
@@ -15,7 +16,7 @@ namespace VoxelLab.Cameras
     {
         public float walkSpeed = 6f;
         public float jumpImpulse = 6f;
-        public float lookSensitivity = 2f;
+        public float lookSensitivity = 0.2f;
 
         private float _yaw, _pitch;
         private VoxelRigidbody _rb;
@@ -30,10 +31,13 @@ namespace VoxelLab.Cameras
 
         private void Update()
         {
-            // Mirar
-            _yaw   += Input.GetAxis("Mouse X") * lookSensitivity;
-            _pitch -= Input.GetAxis("Mouse Y") * lookSensitivity;
-            _pitch = Mathf.Clamp(_pitch, -85f, 85f);
+            if (Mouse.current != null)
+            {
+                // Mirar
+                _yaw   += Mouse.current.delta.x.ReadValue() * lookSensitivity;
+                _pitch -= Mouse.current.delta.y.ReadValue() * lookSensitivity;
+                _pitch = Mathf.Clamp(_pitch, -85f, 85f);
+            }
 
             // Alinear "up" al gradiente del planeta (radial).
             Vector3 up = (transform.position - (_rb.planetCenter ? _rb.planetCenter.position : Vector3.zero)).normalized;
@@ -45,18 +49,23 @@ namespace VoxelLab.Cameras
             Vector3 fwd = Vector3.ProjectOnPlane(transform.forward, up).normalized;
             Vector3 right = Vector3.Cross(up, fwd);
             Vector3 m = Vector3.zero;
-            if (Input.GetKey(KeyCode.W)) m += fwd;
-            if (Input.GetKey(KeyCode.S)) m -= fwd;
-            if (Input.GetKey(KeyCode.D)) m += right;
-            if (Input.GetKey(KeyCode.A)) m -= right;
-            if (m.sqrMagnitude > 0.001f)
+
+            if (Keyboard.current != null)
             {
-                m = m.normalized * walkSpeed;
-                // Replace planar component with desired velocity, keep radial component.
-                _rb.body.velocity = m + Vector3.Project(_rb.body.velocity, up);
+                if (Keyboard.current.wKey.isPressed) m += fwd;
+                if (Keyboard.current.sKey.isPressed) m -= fwd;
+                if (Keyboard.current.dKey.isPressed) m += right;
+                if (Keyboard.current.aKey.isPressed) m -= right;
+
+                if (m.sqrMagnitude > 0.001f)
+                {
+                    m = m.normalized * walkSpeed;
+                    // Replace planar component with desired velocity, keep radial component.
+                    _rb.body.velocity = m + Vector3.Project(_rb.body.velocity, up);
+                }
+                if (Keyboard.current.spaceKey.wasPressedThisFrame)
+                    _rb.AddImpulse(up * jumpImpulse);
             }
-            if (Input.GetKeyDown(KeyCode.Space))
-                _rb.AddImpulse(up * jumpImpulse);
         }
     }
 }

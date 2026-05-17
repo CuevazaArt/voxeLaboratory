@@ -15,6 +15,7 @@
 //  Dependencias: VoxeLab y submódulos.
 // =====================================================================
 using UnityEngine;
+using UnityEngine.InputSystem;
 using VoxelLab.Cameras;
 using VoxelLab.Physics;
 
@@ -64,9 +65,9 @@ namespace VoxelLab.Scene
             var switcher = switchGO.AddComponent<CameraSwitcher>();
             switcher.slots = new[]
             {
-                new CameraSwitcher.Slot { label = "Orbital",  camera = camOrbital, controller = orbital, hotkey = KeyCode.F1 },
-                new CameraSwitcher.Slot { label = "Fly",      camera = camFly,     controller = fly,     hotkey = KeyCode.F2 },
-                new CameraSwitcher.Slot { label = "FPS",      camera = camFps,     controller = fps,     hotkey = KeyCode.F3 },
+                new CameraSwitcher.Slot { label = "Orbital",  camera = camOrbital, controller = orbital, hotkey = Key.F1 },
+                new CameraSwitcher.Slot { label = "Fly",      camera = camFly,     controller = fly,     hotkey = Key.F2 },
+                new CameraSwitcher.Slot { label = "FPS",      camera = camFps,     controller = fps,     hotkey = Key.F3 },
             };
 
             // Voxel Lab principal

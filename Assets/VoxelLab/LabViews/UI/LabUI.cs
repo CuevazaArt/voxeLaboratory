@@ -16,6 +16,7 @@
 //  Dependencias: ToolManager, OverlayController, CameraSwitcher, VoxeLab.
 // =====================================================================
 using UnityEngine;
+using UnityEngine.InputSystem;
 using VoxelLab.Core;
 using VoxelLab.Cameras;
 using VoxelLab.Overlays;
@@ -84,9 +85,12 @@ namespace VoxelLab.UI
 
         private void Update()
         {
-            if (Input.GetKeyDown(KeyCode.Tab)) _show = !_show;
+            if (Keyboard.current != null && Keyboard.current.tabKey.wasPressedThisFrame) _show = !_show;
             if (toolManager != null)
-                toolManager.ConsumePointerOverUI = _show && _windowRect.Contains(new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y));
+            {
+                Vector2 mPos = Mouse.current != null ? Mouse.current.position.ReadValue() : Vector2.zero;
+                toolManager.ConsumePointerOverUI = _show && _windowRect.Contains(new Vector2(mPos.x, Screen.height - mPos.y));
+            }
         }
 
         private void OnGUI()

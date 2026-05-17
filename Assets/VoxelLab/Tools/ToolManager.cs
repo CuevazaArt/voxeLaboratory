@@ -9,6 +9,7 @@
 // =====================================================================
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using VoxelLab.Core;
 using VoxelLab.Physics;
 
@@ -46,26 +47,29 @@ namespace VoxelLab.Tools
         public UndoStack Undo => _undo;
 
         /// <summary>Atajos de teclado Undo/Redo. Modificable para tests/headless.</summary>
-        public KeyCode undoKey = KeyCode.Z;
-        public KeyCode redoKey = KeyCode.Y;
+        public Key undoKey = Key.Z;
+        public Key redoKey = Key.Y;
 
         private void Update()
         {
             if (World == null) return;
 
             // Ctrl-Z / Ctrl-Y antes de cualquier otra interacción.
-            bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
-            if (ctrl)
+            if (Keyboard.current != null)
             {
-                if (Input.GetKeyDown(undoKey)) { _undo.Undo(World); return; }
-                if (Input.GetKeyDown(redoKey)) { _undo.Redo(World); return; }
+                bool ctrl = Keyboard.current.leftCtrlKey.isPressed || Keyboard.current.rightCtrlKey.isPressed;
+                if (ctrl)
+                {
+                    if (Keyboard.current[undoKey].wasPressedThisFrame) { _undo.Undo(World); return; }
+                    if (Keyboard.current[redoKey].wasPressedThisFrame) { _undo.Redo(World); return; }
+                }
             }
 
             if (ConsumePointerOverUI) return;
-            if (!Input.GetMouseButton(0)) return;
+            if (Mouse.current == null || !Mouse.current.leftButton.isPressed) return;
             var cam = cameraOverride != null ? cameraOverride : Camera.main;
             if (cam == null) return;
-            Ray r = cam.ScreenPointToRay(Input.mousePosition);
+            Ray r = cam.ScreenPointToRay(Mouse.current.position.ReadValue());
 
             // Envolver la operación en una transacción para Undo y para
             // batchear los OnChunkDirty.

@@ -6,6 +6,7 @@
 //  Teclas por defecto: F1 fly, F2 orbital, F3 fps, F4 superficie.
 // =====================================================================
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace VoxelLab.Cameras
 {
@@ -25,7 +26,7 @@ namespace VoxelLab.Cameras
             public string label;
             public Camera camera;
             public VoxelLabCameraBase controller;
-            public KeyCode hotkey = KeyCode.F1;
+            public Key hotkey = Key.F1;
         }
 
         public Slot[] slots;
@@ -38,9 +39,10 @@ namespace VoxelLab.Cameras
 
         private void Update()
         {
+            if (Keyboard.current == null) return;
             for (int i = 0; i < slots.Length; i++)
             {
-                if (Input.GetKeyDown(slots[i].hotkey)) { active = i; Apply(); }
+                if (Keyboard.current[slots[i].hotkey].wasPressedThisFrame) { active = i; Apply(); }
             }
         }
 

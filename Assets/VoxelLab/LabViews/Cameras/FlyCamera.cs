@@ -6,6 +6,7 @@
 //  botón derecho para rotar, shift para acelerar.
 // =====================================================================
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace VoxelLab.Cameras
 {
@@ -13,7 +14,7 @@ namespace VoxelLab.Cameras
     {
         public float speed = 10f;
         public float boost = 4f;
-        public float lookSensitivity = 2f;
+        public float lookSensitivity = 0.2f;
 
         private float _yaw, _pitch;
 
@@ -26,22 +27,26 @@ namespace VoxelLab.Cameras
         private void Update()
         {
             if (!enabled) return;
-            if (Input.GetMouseButton(1))
+            if (Mouse.current != null && Mouse.current.rightButton.isPressed)
             {
-                _yaw   += Input.GetAxis("Mouse X") * lookSensitivity;
-                _pitch -= Input.GetAxis("Mouse Y") * lookSensitivity;
+                _yaw   += Mouse.current.delta.x.ReadValue() * lookSensitivity;
+                _pitch -= Mouse.current.delta.y.ReadValue() * lookSensitivity;
                 _pitch = Mathf.Clamp(_pitch, -89f, 89f);
                 transform.rotation = Quaternion.Euler(_pitch, _yaw, 0);
             }
 
-            float s = speed * (Input.GetKey(KeyCode.LeftShift) ? boost : 1f);
+            float s = speed;
             Vector3 m = Vector3.zero;
-            if (Input.GetKey(KeyCode.W)) m += transform.forward;
-            if (Input.GetKey(KeyCode.S)) m -= transform.forward;
-            if (Input.GetKey(KeyCode.D)) m += transform.right;
-            if (Input.GetKey(KeyCode.A)) m -= transform.right;
-            if (Input.GetKey(KeyCode.E)) m += transform.up;
-            if (Input.GetKey(KeyCode.Q)) m -= transform.up;
+            if (Keyboard.current != null)
+            {
+                if (Keyboard.current.leftShiftKey.isPressed) s *= boost;
+                if (Keyboard.current.wKey.isPressed) m += transform.forward;
+                if (Keyboard.current.sKey.isPressed) m -= transform.forward;
+                if (Keyboard.current.dKey.isPressed) m += transform.right;
+                if (Keyboard.current.aKey.isPressed) m -= transform.right;
+                if (Keyboard.current.eKey.isPressed) m += transform.up;
+                if (Keyboard.current.qKey.isPressed) m -= transform.up;
+            }
             transform.position += m * s * Time.deltaTime;
         }
     }

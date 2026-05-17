@@ -24,6 +24,7 @@
 // =====================================================================
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using VoxelLab.Core;
 
 namespace VoxelLab.Physics
@@ -154,12 +155,12 @@ namespace VoxelLab.Physics
 
         private void Update()
         {
-            if (enableHotkeys && availableTypes != null && availableTypes.Length > 0)
+            if (enableHotkeys && availableTypes != null && availableTypes.Length > 0 && Keyboard.current != null)
             {
                 int max = Mathf.Min(availableTypes.Length, 9);
                 for (int i = 0; i < max; i++)
                 {
-                    if (Input.GetKeyDown(KeyCode.Alpha1 + i))
+                    if (Keyboard.current[Key.Digit1 + i].wasPressedThisFrame)
                     {
                         activeIndex = i;
                         break;
